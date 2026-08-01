@@ -153,10 +153,12 @@ test("rapid profile switching coalesces background restart to the latest intent"
 });
 
 test("background work records one receipt for every issued terminal outcome", async () => {
-  const controller = await readFile(
-    new URL("../components/lineage-studio.tsx", import.meta.url),
-    "utf8",
-  );
+  const controller = (
+    await readFile(
+      new URL("../components/lineage-studio.tsx", import.meta.url),
+      "utf8",
+    )
+  ).replace(/\r\n?/gu, "\n");
   const sceneBlock =
     controller.match(
       /void \(async \(\) => \{\s*const startedAt[\s\S]*?(?=\n  \}, \[\n    activeNode\.id)/,

@@ -32,7 +32,7 @@ test("CLI startup failures preserve their safe error code", () => {
   );
 
   assert.equal(result.status, 1);
-  assert.deepEqual(JSON.parse(result.stderr.trim()), {
+  assert.deepEqual(parseLastJsonLine(result.stderr), {
     status: "fatal",
     errorCode: "dataset_required",
   });
@@ -294,7 +294,7 @@ test("live runner reuses one sample session and durably appends each completed r
       },
     );
     assert.equal(duplicateOutput.status, 1);
-    assert.deepEqual(JSON.parse(duplicateOutput.stderr.trim()), {
+    assert.deepEqual(parseLastJsonLine(duplicateOutput.stderr), {
       status: "fatal",
       errorCode: "output_exists",
     });
@@ -357,6 +357,11 @@ function readJsonLines(source) {
     .split(/\r?\n/u)
     .filter((line) => line.trim())
     .map((line) => JSON.parse(line));
+}
+
+function parseLastJsonLine(source) {
+  const lines = source.split(/\r?\n/u).filter((line) => line.trim());
+  return JSON.parse(lines.at(-1));
 }
 
 function listen(server) {
