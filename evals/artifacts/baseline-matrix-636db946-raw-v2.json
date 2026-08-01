@@ -1,0 +1,86 @@
+{
+  "protocol": "visual-token-latency-matrix/1",
+  "baselineCommit": "636db946a42f820f530fb99caf7717ed2d53b997",
+  "instrumentation": "provider_usage_callback_only",
+  "retryPolicy": "one retry for evaluator infrastructure failures; provider and product failures are not retried",
+  "datasetPath": "evals/datasets/token-latency-frozen.jsonl",
+  "startedAt": "2026-07-28T03:59:32.672Z",
+  "completedAt": "2026-07-28T04:01:37.065Z",
+  "expectedRuns": 20,
+  "runs": [
+    {
+      "runId": "arch-low-01-01",
+      "caseId": "arch-low-01",
+      "category": "technical_architecture",
+      "complexity": "low",
+      "sample": 1,
+      "observedAt": "2026-07-28T03:59:32.674Z",
+      "infrastructureRetries": 1,
+      "status": "failed",
+      "errorCode": "web_start_timeout"
+    },
+    {
+      "runId": "arch-medium-01-01",
+      "caseId": "arch-medium-01",
+      "category": "technical_architecture",
+      "complexity": "medium",
+      "sample": 1,
+      "observedAt": "2026-07-28T04:00:38.816Z",
+      "infrastructureRetries": 0,
+      "status": "accepted",
+      "metrics": [
+        {
+          "action": "create",
+          "model": "deepseek-v4-pro",
+          "ttftMs": null,
+          "totalMs": 28058,
+          "finishReason": "accepted",
+          "contentLength": 8068,
+          "usage": {
+            "providerCompletions": 1,
+            "knownCompletions": 1,
+            "promptTokens": 2377,
+            "completionTokens": 1630,
+            "totalTokens": 4007,
+            "promptCacheHitTokens": 2304,
+            "promptCacheMissTokens": 73
+          }
+        },
+        {
+          "action": "expand",
+          "model": "deepseek-v4-pro",
+          "ttftMs": null,
+          "totalMs": 22334,
+          "finishReason": "accepted",
+          "contentLength": 20245,
+          "usage": {
+            "providerCompletions": 1,
+            "knownCompletions": 1,
+            "promptTokens": 2508,
+            "completionTokens": 1482,
+            "totalTokens": 3990,
+            "promptCacheHitTokens": 384,
+            "promptCacheMissTokens": 2124
+          }
+        },
+        {
+          "action": "define_batch",
+          "model": "deepseek-v4-flash",
+          "ttftMs": null,
+          "totalMs": 3126,
+          "finishReason": "accepted",
+          "contentLength": 1482,
+          "usage": {
+            "providerCompletions": 1,
+            "knownCompletions": 1,
+            "promptTokens": 1340,
+            "completionTokens": 206,
+            "totalTokens": 1546,
+            "promptCacheHitTokens": 256,
+            "promptCacheMissTokens": 1084
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,418 @@
+{
+  "protocol": "visual-token-economy-eval/1",
+  "suite": "token-economy",
+  "seed": 20260728,
+  "network": "forbidden",
+  "cases": [
+    {
+      "id": "profile-on-demand-zero-background",
+      "severity": "critical",
+      "category": "profile-budget",
+      "kind": "prefetch-plan",
+      "input": {
+        "profile": "on_demand",
+        "sceneCandidates": 6,
+        "termCandidates": 6,
+        "receipts": [],
+        "reservations": {
+          "sceneCalls": 0,
+          "termBatches": 0
+        }
+      },
+      "expected": {
+        "limits": {
+          "sceneCalls": 0,
+          "termBatches": 0
+        },
+        "consumed": {
+          "sceneCalls": 0,
+          "termBatches": 0
+        },
+        "remaining": {
+          "sceneCalls": 0,
+          "termBatches": 0
+        },
+        "selectedSceneIds": [],
+        "selectedTermIds": []
+      }
+    },
+    {
+      "id": "profile-balanced-one-layer-budget",
+      "severity": "critical",
+      "category": "profile-budget",
+      "kind": "prefetch-plan",
+      "input": {
+        "profile": "balanced",
+        "sceneCandidates": 6,
+        "termCandidates": 6,
+        "receipts": [],
+        "reservations": {
+          "sceneCalls": 0,
+          "termBatches": 0
+        }
+      },
+      "expected": {
+        "limits": {
+          "sceneCalls": 1,
+          "termBatches": 1
+        },
+        "consumed": {
+          "sceneCalls": 0,
+          "termBatches": 0
+        },
+        "remaining": {
+          "sceneCalls": 1,
+          "termBatches": 1
+        },
+        "selectedSceneIds": [
+          "scene-1"
+        ],
+        "selectedTermIds": [
+          "terms-1"
+        ]
+      }
+    },
+    {
+      "id": "profile-deep-bounded-preparation",
+      "severity": "critical",
+      "category": "profile-budget",
+      "kind": "prefetch-plan",
+      "input": {
+        "profile": "deep",
+        "sceneCandidates": 7,
+        "termCandidates": 7,
+        "receipts": [],
+        "reservations": {
+          "sceneCalls": 0,
+          "termBatches": 0
+        }
+      },
+      "expected": {
+        "limits": {
+          "sceneCalls": 5,
+          "termBatches": 4
+        },
+        "consumed": {
+          "sceneCalls": 0,
+          "termBatches": 0
+        },
+        "remaining": {
+          "sceneCalls": 5,
+          "termBatches": 4
+        },
+        "selectedSceneIds": [
+          "scene-1",
+          "scene-2",
+          "scene-3",
+          "scene-4",
+          "scene-5"
+        ],
+        "selectedTermIds": [
+          "terms-1",
+          "terms-2",
+          "terms-3",
+          "terms-4"
+        ]
+      }
+    },
+    {
+      "id": "receipt-replay-is-deduplicated",
+      "severity": "critical",
+      "category": "receipt-integrity",
+      "kind": "prefetch-plan",
+      "input": {
+        "profile": "deep",
+        "sceneCandidates": 6,
+        "termCandidates": 6,
+        "receipts": [
+          {
+            "id": "scene-request-1",
+            "lane": "background",
+            "action": "expand",
+            "frontier": "active",
+            "outcome": "accepted"
+          },
+          {
+            "id": "scene-request-1",
+            "lane": "background",
+            "action": "expand",
+            "frontier": "active",
+            "outcome": "failed"
+          },
+          {
+            "id": "term-request-1",
+            "lane": "background",
+            "action": "define_batch",
+            "frontier": "active",
+            "outcome": "failed"
+          },
+          {
+            "id": "term-request-1",
+            "lane": "background",
+            "action": "define_batch",
+            "frontier": "active",
+            "outcome": "accepted"
+          }
+        ],
+        "reservations": {
+          "sceneCalls": 0,
+          "termBatches": 0
+        }
+      },
+      "expected": {
+        "limits": {
+          "sceneCalls": 5,
+          "termBatches": 4
+        },
+        "consumed": {
+          "sceneCalls": 1,
+          "termBatches": 1
+        },
+        "remaining": {
+          "sceneCalls": 4,
+          "termBatches": 3
+        },
+        "selectedSceneIds": [
+          "scene-1",
+          "scene-2",
+          "scene-3",
+          "scene-4"
+        ],
+        "selectedTermIds": [
+          "terms-1",
+          "terms-2",
+          "terms-3"
+        ]
+      }
+    },
+    {
+      "id": "failed-and-accepted-requests-exhaust-budget",
+      "severity": "critical",
+      "category": "budget-exhaustion",
+      "kind": "prefetch-plan",
+      "input": {
+        "profile": "deep",
+        "sceneCandidates": 3,
+        "termCandidates": 3,
+        "receipts": [
+          {
+            "id": "scene-request-1",
+            "lane": "background",
+            "action": "expand",
+            "frontier": "active",
+            "outcome": "accepted"
+          },
+          {
+            "id": "scene-request-2",
+            "lane": "background",
+            "action": "expand",
+            "frontier": "active",
+            "outcome": "failed"
+          },
+          {
+            "id": "scene-request-3",
+            "lane": "background",
+            "action": "expand",
+            "frontier": "active",
+            "outcome": "aborted"
+          },
+          {
+            "id": "scene-request-4",
+            "lane": "background",
+            "action": "expand",
+            "frontier": "active",
+            "outcome": "discarded"
+          },
+          {
+            "id": "scene-request-5",
+            "lane": "background",
+            "action": "expand",
+            "frontier": "active",
+            "outcome": "accepted"
+          },
+          {
+            "id": "term-request-1",
+            "lane": "background",
+            "action": "define_batch",
+            "frontier": "active",
+            "outcome": "failed"
+          },
+          {
+            "id": "term-request-2",
+            "lane": "background",
+            "action": "define_batch",
+            "frontier": "active",
+            "outcome": "accepted"
+          },
+          {
+            "id": "term-request-3",
+            "lane": "background",
+            "action": "define_batch",
+            "frontier": "active",
+            "outcome": "aborted"
+          },
+          {
+            "id": "term-request-4",
+            "lane": "background",
+            "action": "define_batch",
+            "frontier": "active",
+            "outcome": "discarded"
+          }
+        ],
+        "reservations": {
+          "sceneCalls": 2,
+          "termBatches": 2
+        }
+      },
+      "expected": {
+        "limits": {
+          "sceneCalls": 5,
+          "termBatches": 4
+        },
+        "consumed": {
+          "sceneCalls": 7,
+          "termBatches": 6
+        },
+        "remaining": {
+          "sceneCalls": 0,
+          "termBatches": 0
+        },
+        "selectedSceneIds": [],
+        "selectedTermIds": []
+      }
+    },
+    {
+      "id": "provider-usage-is-deduplicated-and-null-is-preserved",
+      "severity": "critical",
+      "category": "usage-accounting",
+      "kind": "usage-summary",
+      "input": {
+        "untrustedCharacterCounts": [
+          1,
+          250000,
+          9999999
+        ],
+        "receipts": [
+          {
+            "id": "usage-request-1",
+            "usage": {
+              "promptTokens": 100,
+              "completionTokens": 25,
+              "totalTokens": 125,
+              "promptCacheHitTokens": 10,
+              "promptCacheMissTokens": 90
+            }
+          },
+          {
+            "id": "usage-request-1",
+            "usage": {
+              "promptTokens": 99999,
+              "completionTokens": 99999,
+              "totalTokens": 199998,
+              "promptCacheHitTokens": 0,
+              "promptCacheMissTokens": 99999
+            }
+          },
+          {
+            "id": "usage-request-2",
+            "usage": {
+              "promptTokens": null,
+              "completionTokens": null,
+              "totalTokens": null,
+              "promptCacheHitTokens": null,
+              "promptCacheMissTokens": null
+            }
+          }
+        ]
+      },
+      "expected": {
+        "inputReceiptCount": 3,
+        "uniqueReceiptCount": 2,
+        "duplicateReceiptCount": 1,
+        "fields": {
+          "promptTokens": {
+            "reportedTokens": 100,
+            "unknownReceipts": 1
+          },
+          "completionTokens": {
+            "reportedTokens": 25,
+            "unknownReceipts": 1
+          },
+          "totalTokens": {
+            "reportedTokens": 125,
+            "unknownReceipts": 1
+          },
+          "promptCacheHitTokens": {
+            "reportedTokens": 10,
+            "unknownReceipts": 1
+          },
+          "promptCacheMissTokens": {
+            "reportedTokens": 90,
+            "unknownReceipts": 1
+          }
+        }
+      }
+    },
+    {
+      "id": "all-missing-provider-usage-remains-unknown",
+      "severity": "critical",
+      "category": "usage-accounting",
+      "kind": "usage-summary",
+      "input": {
+        "untrustedCharacterCounts": [
+          12000,
+          45000
+        ],
+        "receipts": [
+          {
+            "id": "unknown-usage-1",
+            "usage": {
+              "promptTokens": null,
+              "completionTokens": null,
+              "totalTokens": null,
+              "promptCacheHitTokens": null,
+              "promptCacheMissTokens": null
+            }
+          },
+          {
+            "id": "unknown-usage-2",
+            "usage": {
+              "promptTokens": null,
+              "completionTokens": null,
+              "totalTokens": null,
+              "promptCacheHitTokens": null,
+              "promptCacheMissTokens": null
+            }
+          }
+        ]
+      },
+      "expected": {
+        "inputReceiptCount": 2,
+        "uniqueReceiptCount": 2,
+        "duplicateReceiptCount": 0,
+        "fields": {
+          "promptTokens": {
+            "reportedTokens": 0,
+            "unknownReceipts": 2
+          },
+          "completionTokens": {
+            "reportedTokens": 0,
+            "unknownReceipts": 2
+          },
+          "totalTokens": {
+            "reportedTokens": 0,
+            "unknownReceipts": 2
+          },
+          "promptCacheHitTokens": {
+            "reportedTokens": 0,
+            "unknownReceipts": 2
+          },
+          "promptCacheMissTokens": {
+            "reportedTokens": 0,
+            "unknownReceipts": 2
+          }
+        }
+      }
+    }
+  ]
+}

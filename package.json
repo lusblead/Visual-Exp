@@ -1,0 +1,55 @@
+{
+  "name": "visual-explanation-platform",
+  "version": "0.2.0",
+  "private": true,
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "dev": "vinext dev",
+    "dev:local": "node scripts/start-local.mjs",
+    "build": "vinext build",
+    "start": "vinext start",
+    "companion:build": "dotnet build companion/VisualizedExp.Companion/VisualizedExp.Companion.csproj -c Release --nologo",
+    "backend:dev": "mvn -f backend/pom.xml spring-boot:run",
+    "backend:test": "mvn -f backend/pom.xml test",
+    "test": "npm run companion:build && npm run backend:test && npm run build && node --experimental-strip-types --test tests/rendered-html.test.mjs tests/contracts.test.mjs tests/content-quality.test.mjs tests/annotated-term-match.test.mjs tests/deepseek-draft-contract.test.mjs tests/deepseek-model.test.mjs tests/explanation-contracts.test.mjs tests/explanation-context-token.test.mjs tests/explanation-task-cache.test.mjs tests/deep-reading-cache.test.mjs tests/primary-material.test.mjs tests/semantic-diagram.test.mjs tests/web-relay-policy.test.mjs tests/term-prefetch-priority.test.mjs tests/scene-prefetch-priority.test.mjs tests/api-lineage.test.mjs tests/server-web-search.test.mjs tests/client-navigation.test.mjs tests/selection-chat-client.test.mjs tests/model-settings.test.mjs tests/knowledge-session.test.mjs tests/knowledge-session-repository.test.mjs tests/backend-knowledge-session-repository.test.mjs tests/backend-proxy.test.mjs tests/knowledge-export.test.mjs tests/prefetch-policy.test.mjs tests/token-economy-live-compare.test.mjs tests/provider-settings.test.mjs && node --experimental-strip-types --test tests/local-companion.test.mjs",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint . --ignore-pattern dist --ignore-pattern .next --ignore-pattern .vinext --ignore-pattern .wrangler",
+    "harness:minimal": "node harness/minimal-visual-conversation.mjs",
+    "harness:knowledge-session": "node harness/knowledge-session.mjs",
+    "eval:token-economy": "node evals/token-economy/run.mjs",
+    "harness:token-economy": "node harness/token-economy.mjs",
+    "measure:latency": "node scripts/measure-deepseek-latency.mjs"
+  },
+  "dependencies": {
+    "mermaid": "11.16.0",
+    "next": "16.2.11",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "devDependencies": {
+    "@cloudflare/vite-plugin": "1.47.0",
+    "@tailwindcss/postcss": "4.2.1",
+    "@types/node": "22.19.19",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "@vitejs/plugin-react": "6.0.2",
+    "@vitejs/plugin-rsc": "0.5.26",
+    "eslint": "9.39.4",
+    "eslint-config-next": "16.2.11",
+    "react-server-dom-webpack": "19.2.8",
+    "tailwindcss": "4.2.1",
+    "typescript": "5.9.3",
+    "vinext": "0.0.50",
+    "vite": "8.0.16",
+    "wrangler": "4.114.0"
+  },
+  "overrides": {
+    "next": {
+      "postcss": "8.5.18",
+      "sharp": "0.35.2"
+    }
+  },
+  "type": "module"
+}

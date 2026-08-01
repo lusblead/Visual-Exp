@@ -1,0 +1,1352 @@
+version: 1
+feature_id: "visual-explanation.semantic-zoom"
+title: "Read and deepen a semantic explanation"
+status: "implemented"
+
+characteristics:
+  cross_component: true
+  asynchronous: true
+  persisted_state: false
+  external_dependencies: true
+  retry_or_compensation: true
+  security_sensitive: true
+
+nodes:
+  E1:
+    kind: entry
+    description: User submits a question from the centered or compact composer
+    trigger: QuestionComposer submit
+    code:
+      - path: components/lineage-studio.tsx
+        symbol: createExplanation
+
+  D1:
+    kind: decision
+    description: Validate the bounded non-empty question before provider access
+    condition: trimmed question length is between 1 and 1200
+    code:
+      - path: components/lineage-studio.tsx
+        symbol: createExplanation
+    tests:
+      - path: tests/api-lineage.test.mjs
+        symbol: "API rejects malformed requests"
+
+  A1:
+    kind: action
+    description: Compact the composer and send the create request
+    code:
+      - path: components/lineage-studio.tsx
+        symbol: createExplanation
+      - path: app/api/lineage/route.ts
+        symbol: POST
+
+  D33:
+    kind: decision
+    description: Admit only trusted bounded JSON mutations before resolving credentials or performing external work
+    condition: Origin matches the request origin when present, Sec-Fetch-Site is not cross-site, media type is application/json, body is at most 4 MiB, and the parsed value is an object
+    code:
+      - path: app/api/lineage/route.ts
+        symbol: assertTrustedMutation
+      - path: app/api/lineage/route.ts
+        symbol: readBody
+    tests:
+      - path: tests/api-lineage.test.mjs
+        symbol: "API rejects cross-site non-JSON and oversized requests before external work"
+
+  D30:
+    kind: decision
+    description: Apply the explicit main-question search option and default missing input to off
+    condition: create searchMode is off or on
+    code:
+      - path: components/lineage-studio.tsx
+        symbol: createExplanation
+      - path: app/api/lineage/route.ts
+        symbol: createSearchMode
+    tests:
+      - path: tests/client-navigation.test.mjs
+        symbol: "main question search permission is colocated with providers defaults off and only travels with create"
+      - path: tests/api-lineage.test.mjs
+        symbol: "create with searchMode off never calls the internal search service"
+      - path: tests/api-lineage.test.mjs
+        symbol: "create with searchMode on searches once and gives the model only stable evidence IDs"
+
+  A21:
+    kind: action
+    description: Call the bearer-protected owner-scoped Java internal search endpoint exactly once
+    code:
+      - path: lib/server-web-search.ts
+        symbol: searchVisualEvidence
+      - path: backend/src/main/java/com/visualizedexp/backend/search/InternalSearchController.java
+        symbol: search
+    external_call:
+      system: Loopback Java backend and active Tavily or Brave Search API
+      timeout: Request-signal bounded Java fetch and 45s provider request
+      failure_behavior: Return a typed safe error before visual model execution with no provider fallback or retry
+      failure_nodes: [D31, X33]
+    tests:
+      - path: tests/server-web-search.test.mjs
+        symbol: "server search sends only server identity, bounds the query, and projects safe source fields"
+      - path: backend/src/test/java/com/visualizedexp/backend/BackendApiIntegrationTest.java
+        symbol: internalSearchUsesOwnerScopedGatewayAndCapsTheResponse
+
+  D31:
+    kind: decision
+    description: Continue visual generation only with at least one valid bounded normalized source
+    condition: internal search returns one through five HTTPS sources within the response contract
+    code:
+      - path: app/api/lineage/route.ts
+        symbol: POST
+      - path: lib/server-web-search.ts
+        symbol: searchVisualEvidence
+    tests:
+      - path: tests/api-lineage.test.mjs
+        symbol: "search configuration and provider failures stop before the model with typed errors"
+      - path: tests/server-web-search.test.mjs
+        symbol: "server search rejects malformed, non-HTTPS, and oversized responses"
+
+  A22:
+    kind: action
+    description: Assign stable S1 through S5 IDs and pass bounded search fields as untrusted visual-model context
+    code:
+      - path: lib/server-web-search.ts
+        symbol: parseSource
+      - path: lib/model-port.ts
+        symbol: VisualSearchEvidence
+      - path: lib/deepseek-model.ts
+        symbol: buildCreatePrompt
+    tests:
+      - path: tests/api-lineage.test.mjs
+        symbol: "create with searchMode on searches once and gives the model only stable evidence IDs"
+      - path: tests/deepseek-model.test.mjs
+        symbol: "DeepSeek create treats server search results as untrusted stable-ID evidence"
+
+  A2:
+    kind: action
+    description: Resolve DeepSeek, OpenAI, or deterministic demo without exposing credentials
+    code:
+      - path: lib/model-port.ts
+        symbol: resolveVisualModel
+
+  A9:
+    kind: action
+    description: Request an action-specific structured draft from the configured model
+    code:
+      - path: lib/deepseek-model.ts
+        symbol: requestStructuredDraft
+      - path: lib/openai-model.ts
+        symbol: OpenAIVisualModel
+    external_call:
+      system: Configured DeepSeek or OpenAI API
+      timeout: 90s per attempt
+      failure_behavior: Reject an exact credential echo as a permanent safe failure; otherwise retry one transient provider failure and independently repair one invalid candidate, then fail closed
+      failure_nodes: [D9, C1, D10, C2, X2, X12]
+      retry:
+        max_attempts: 2
+        backoff: No automatic delay in the local MVP
+
+  D9:
+    kind: decision
+    description: Reject an exact credential echo and classify safe provider completion, transient failure, or permanent failure
+    condition: response excludes the exact active API Key before use, then resolves to supported completion versus network, 429, retryable 5xx, resource, authentication, balance, parameter, or filtering outcome
+    code:
+      - path: lib/deepseek-model.ts
+        symbol: requestProviderCompletion
+      - path: lib/openai-model.ts
+        symbol: OpenAIVisualModel
+      - path: lib/provider-response-safety.ts
+        symbol: assertProviderCredentialNotEchoed
+    tests:
+      - path: tests/deepseek-model.test.mjs
+        symbol: "DeepSeek keeps provider retry separate from content repair"
+      - path: tests/deepseek-model.test.mjs
+        symbol: "DeepSeek rejects a successful response that echoes its credential"
+      - path: tests/deepseek-model.test.mjs
+        symbol: "OpenAI rejects a successful response that echoes its credential"
+
+  C1:
+    kind: compensation
+    description: Replay the immutable provider request once after a transient failure
+    restores_or_resolves: A transient provider failure does not consume the independent content-repair opportunity
+    failure_behavior: Return a typed safe failure after the second provider failure
+    code:
+      - path: lib/deepseek-model.ts
+        symbol: requestProviderCompletion
+    tests:
+      - path: tests/deepseek-model.test.mjs
+        symbol: "DeepSeek retries a 503 by replaying the original request unchanged"
+
+  D10:
+    kind: decision
+    description: Validate JSON and the action-specific local contract
+    condition: create, expand, define, nested define, or dive candidate satisfies bounded syntax and content rules; invalid optional short-definition annotations may be dropped without changing accepted prose
+    code:
+      - path: lib/deepseek-model.ts
+        symbol: requestStructuredDraft
+      - path: lib/deepseek-draft-contract.ts
+        symbol: parseCreateSceneDraft
+      - path: lib/term-explanation.ts
+        symbol: parseTermDefinition
+      - path: lib/deep-explanation.ts
+        symbol: parseDeepExplanation
+    tests:
+      - path: tests/explanation-contracts.test.mjs
+        symbol: "deep explanation contract validates request, literal terms, and math preference"
+      - path: tests/explanation-contracts.test.mjs
+        symbol: "invalid optional nested annotations are dropped without rejecting useful prose"
+
+  D32:
+    kind: decision
+    description: Distinguish model-only create from create supplied with server search evidence
+    condition: VisualModelContext searchEvidence is empty or contains one through five normalized sources
+    code:
+      - path: lib/model-port.ts
+        symbol: VisualModelContext
+      - path: lib/deepseek-model.ts
+        symbol: create
+      - path: lib/openai-model.ts
+        symbol: create
+    tests:
+      - path: tests/api-lineage.test.mjs
+        symbol: "create with searchMode off never calls the internal search service"
+      - path: tests/api-lineage.test.mjs
+        symbol: "create with searchMode on searches once and gives the model only stable evidence IDs"
+
+  A23:
+    kind: action
+    description: Validate stable evidence references require at least one used source and map only server-held canonical metadata
+    code:
+      - path: lib/deepseek-draft-contract.ts
+        symbol: resolveEvidence
+      - path: lib/source-safety.ts
+        symbol: assertCreateHasNoFabricatedSources
+    tests:
+      - path: tests/deepseek-draft-contract.test.mjs
+        symbol: "create assembly maps only provided stable search references into canonical evidence"
+      - path: tests/deepseek-model.test.mjs
+        symbol: "DeepSeek create treats server search results as untrusted stable-ID evidence"
+
+  C2:
+    kind: compensation
+    description: Request one bounded content repair with a sanitized validation category and category-specific guidance
+    restores_or_resolves: Recover malformed or locally invalid content without changing the trusted question or context; specific relation, source, math-preference, term, and content failures take precedence over generic child-shape matching, and every repair retains the original Schema, count, source, and math mode
+    failure_behavior: Reject the second invalid candidate and never switch silently to demo
+    code:
+      - path: lib/deepseek-model.ts
+        symbol: requestStructuredDraft
+    tests:
+      - path: tests/deepseek-model.test.mjs
+        symbol: "DeepSeek create repairs content-invalid draft with one targeted second request"
+      - path: tests/deepseek-model.test.mjs
+        symbol: "DeepSeek repair classifies relation failures before child shape"
+      - path: tests/deepseek-model.test.mjs
+        symbol: "DeepSeek repair removes unsolicited formulas with targeted guidance"
+
+  D2:
+    kind: decision
+    description: Accept only a canonical root with valid graph, source, content, and annotation constraints
+    condition: assembled root passes all canonical validators
+    code:
+      - path: lib/visual-contract-parse.ts
+        symbol: parseVisualDocument
+      - path: lib/visual-content-quality.ts
+        symbol: assertVisualDocumentContentQuality
+    tests:
+      - path: tests/api-lineage.test.mjs
+        symbol: "API creates a high-level scene and lazily expands one selected branch"
+
+  X1:
+    kind: outcome
+    description: Invalid question rejected inline
+    result: No request is sent and accepted knowledge remains unchanged
+
+  X2:
+    kind: outcome
+    description: Provider or validation failure preserves accepted state
+    result: Safe typed error; last valid document and route remain visible
+
+  X12:
+    kind: outcome
+    description: Generated content remained invalid after one repair
+    result: provider_response_invalid without state adoption
+
+  X3:
+    kind: outcome
+    description: Root renders as a linear explanatory reading flow
+    result: Restrained title, prominent direct answer, orienting paragraphs, and three to six ordered entrances
+    code:
+      - path: components/lineage-stage.tsx
+        symbol: StageColumn
+    tests:
+      - path: harness/minimal-visual-conversation.mjs
+        symbol: knowledge-network knowledge-spine
+
+  A12:
+    kind: action
+    description: Build a stable queue of unexpanded direct entrances in current reading order
+    code:
+      - path: lib/scene-prefetch-priority.mjs
+        symbol: buildScenePrefetchQueue
+      - path: components/lineage-studio.tsx
+        symbol: LineageStudio
+    tests:
+      - path: tests/scene-prefetch-priority.test.mjs
+        symbol: "scene prefetch includes only the active semantic frontier"
+
+  D14:
+    kind: decision
+    description: Continue only while a valid unexpanded direct entrance remains
+    condition: child belongs to active scene, is expandable, has no children, has capacity, and has no matching failure identity
+    code:
+      - path: lib/scene-prefetch-priority.mjs
+        symbol: buildScenePrefetchQueue
+    tests:
+      - path: tests/scene-prefetch-priority.test.mjs
+        symbol: "scene prefetch stops at depth and capacity boundaries"
+
+  A13:
+    kind: action
+    description: Expand one direct entrance in the background with the latest accepted document
+    code:
+      - path: components/lineage-studio.tsx
+        symbol: LineageStudio
+      - path: app/api/lineage/route.ts
+        symbol: POST
+    external_call:
+      system: POST /api/lineage action=expand using deepseek-v4-pro
+      timeout: 90s per provider attempt
+      failure_behavior: Record a bounded content identity and continue without replacing foreground UI
+      failure_nodes: [X16, X2]
+      retry:
+        max_attempts: 2
+        backoff: Provider adapter policy
+
+  D15:
+    kind: decision
+    description: Adopt background expansion only when its base version and current authoritative document still match
+    condition: request epoch is current, response document is valid, and local version still equals request base version
+    code:
+      - path: components/lineage-studio.tsx
+        symbol: LineageStudio
+    tests:
+      - path: tests/client-navigation.test.mjs
+        symbol: "scene preparation is one-frontier, cancellable, and version guarded"
+
+  X15:
+    kind: outcome
+    description: Current scene's direct entrances are prepared or intentionally skipped
+    result: No deeper frontier is generated until another scene becomes active
+
+  X16:
+    kind: outcome
+    description: Stale or failed background expansion is ignored
+    result: Accepted document, route, foreground errors, and focus remain unchanged
+
+  E2:
+    kind: entry
+    description: User activates ordinary prose or the enter affordance of an ordered entrance
+    trigger: OrderedKnowledgeSection activation
+    code:
+      - path: components/lineage-scene-primitives.tsx
+        symbol: KnowledgeSection
+
+  D3:
+    kind: decision
+    description: Choose immediate navigation or foreground expansion
+    condition: selected node already has children, is terminal, or still needs expansion
+    code:
+      - path: components/lineage-studio.tsx
+        symbol: enterNode
+    tests:
+      - path: tests/client-navigation.test.mjs
+        symbol: "knowledge-node click keeps term explanation and scene entry mutually exclusive"
+
+  A3:
+    kind: action
+    description: Push an existing or terminal node into local route history
+    code:
+      - path: components/lineage-studio.tsx
+        symbol: enterNode
+
+  X4:
+    kind: outcome
+    description: Prepared or terminal scene is shown immediately
+    result: Route changes without a foreground model request
+
+  A4:
+    kind: action
+    description: Cancel background scene work, push the selected route, and request foreground expansion
+    code:
+      - path: components/lineage-studio.tsx
+        symbol: enterNode
+      - path: app/api/lineage/route.ts
+        symbol: POST
+
+  D5:
+    kind: decision
+    description: Validate an existing expandable target and remaining graph capacity
+    condition: target exists, is expandable, is below depth 12, and can add at least three children
+    code:
+      - path: app/api/lineage/route.ts
+        symbol: POST
+    tests:
+      - path: tests/api-lineage.test.mjs
+        symbol: "API rejects malformed requests"
+
+  A5:
+    kind: action
+    description: Prepare the selected node's bounded trusted expansion context
+    code:
+      - path: lib/model-port.ts
+        symbol: VisualModelPort
+
+  D6:
+    kind: decision
+    description: Accept only a version-matched, target-scoped, content-rich operation batch
+    condition: version, parent, child count, source, graph, content, and annotation checks pass
+    code:
+      - path: lib/deepseek-draft-contract.ts
+        symbol: assembleVisualOperations
+      - path: lib/visual-content-quality.ts
+        symbol: assertVisualExpansionContentQuality
+    tests:
+      - path: tests/deepseek-model.test.mjs
+        symbol: "DeepSeek expand assembles operation envelopes, IDs, and graph fields locally"
+
+  A6:
+    kind: action
+    description: Apply operations, rebuild child links, increment version, and revalidate the full graph
+    code:
+      - path: lib/visual-operation-apply.ts
+        symbol: applyVisualOperations
+
+  X6:
+    kind: outcome
+    description: Invalid expansion target rejected
+    result: Structured HTTP 400 without state mutation
+
+  X7:
+    kind: outcome
+    description: Foreground scene expansion succeeds
+    result: Expanded scene renders linearly and unrelated branches remain unchanged
+
+  E3:
+    kind: entry
+    description: User activates backward or forward route arrow
+    trigger: Navigation arrow activation
+    code:
+      - path: components/lineage-studio.tsx
+        symbol: moveInHistory
+
+  A7:
+    kind: action
+    description: Move only the local route-history cursor
+    code:
+      - path: components/lineage-studio.tsx
+        symbol: moveInHistory
+
+  X8:
+    kind: outcome
+    description: Existing prior or next scene is shown
+    result: No semantic mutation and no foreground model request
+
+  A10:
+    kind: action
+    description: Build current-layer definition batches with active-scene terms first
+    code:
+      - path: lib/term-prefetch-priority.mjs
+        symbol: buildTermPrefetchBatches
+    tests:
+      - path: tests/term-prefetch-priority.test.mjs
+        symbol: "term prefetch limits work to the active reading layer"
+
+  D13:
+    kind: decision
+    description: Continue while a current-layer node has uncached annotations
+    condition: batch contains at most eight valid current identities that are uncached, not in flight, and not failed
+    code:
+      - path: lib/term-prefetch-priority.mjs
+        symbol: buildTermPrefetchBatches
+    tests:
+      - path: tests/term-prefetch-priority.test.mjs
+        symbol: "term prefetch limits work to the active reading layer and batches by node"
+
+  A11:
+    kind: action
+    description: Request one node's bounded short-definition batch with Flash
+    code:
+      - path: components/lineage-studio.tsx
+        symbol: LineageStudio
+      - path: app/api/lineage/route.ts
+        symbol: POST
+
+  X13:
+    kind: outcome
+    description: Current-layer term preparation completes
+    result: All eligible terms are cached, failed, or cancelled without UI mutation
+
+  X14:
+    kind: outcome
+    description: Valid background definition is cached
+    result: Later activation can open immediately without changing route or document
+
+  E4:
+    kind: entry
+    description: User single-activates an annotated base term
+    trigger: AnnotatedText single activation
+    code:
+      - path: components/lineage-scene-primitives.tsx
+        symbol: AnnotatedText
+
+  D7:
+    kind: decision
+    description: Validate that a base term is allowlisted and literal in the selected node
+    condition: node exists, term matches node terms, and term occurs at a renderable boundary in visible node text
+    code:
+      - path: app/api/lineage/route.ts
+        symbol: POST
+    tests:
+      - path: tests/api-lineage.test.mjs
+        symbol: "API defines only an annotated body term without mutating the document"
+
+  A8:
+    kind: action
+    description: Start one independent Flash definition task when the stable card identity is absent
+    code:
+      - path: components/lineage-studio.tsx
+        symbol: explainTerm
+
+  D18:
+    kind: decision
+    description: Resolve the stable term-card identity against ready, pending, error, or absent task state
+    condition: document, node content, term, and optional trusted parent explanation fingerprint match
+    code:
+      - path: lib/explanation-task-cache.mjs
+        symbol: createExplanationTaskStore
+    tests:
+      - path: tests/explanation-task-cache.test.mjs
+        symbol: "term cards preserve pending and ready work across hide and reopen"
+
+  X9:
+    kind: outcome
+    description: Invalid term or deep-selection request rejected
+    result: Structured HTTP 400 and current reading state remains unchanged
+
+  X10:
+    kind: outcome
+    description: Contextual base definition added to the top-aligned explanation rail
+    result: visual-term-explanation/2 opens as one independently dismissible card without document or route mutation
+
+  X20:
+    kind: outcome
+    description: Ready term card restored from cache
+    result: Card becomes visible immediately without another provider request
+
+  X21:
+    kind: outcome
+    description: Existing loading term card restored
+    result: The original task remains active and no duplicate provider request starts
+
+  E5:
+    kind: entry
+    description: User activates a nested term in the current definition
+    trigger: TermExplanation nested AnnotatedText activation
+    code:
+      - path: components/lineage-scene-primitives.tsx
+        symbol: TermPopover
+
+  D16:
+    kind: decision
+    description: Validate the parent explanation, nested allowlist, literal occurrence, and recursion depth
+    condition: trusted parent belongs to the node, nested term is listed and literal, and stack depth is below four
+    code:
+      - path: app/api/lineage/route.ts
+        symbol: POST
+      - path: lib/term-explanation.ts
+        symbol: parseTermExplanation
+    tests:
+      - path: tests/api-lineage.test.mjs
+        symbol: "API batches same-node terms, supports nested definitions, and never mutates the document"
+
+  A14:
+    kind: action
+    description: Request a nested contextual definition with Flash
+    code:
+      - path: components/lineage-studio.tsx
+        symbol: explainNestedTerm
+      - path: lib/model-port.ts
+        symbol: VisualModelPort
+
+  X17:
+    kind: outcome
+    description: Nested definition pushed onto that card's local explanation stack
+    result: Reader can go back within one card without changing sibling cards or the originating scene
+
+  E6:
+    kind: entry
+    description: User double-activates an annotated term for a structured deep explanation
+    trigger: AnnotatedText double activation or term-surface deep action
+    code:
+      - path: components/lineage-scene-primitives.tsx
+        symbol: AnnotatedText
+      - path: components/lineage-studio.tsx
+        symbol: deepenNodeTerm
+
+  D17:
+    kind: decision
+    description: Validate a bounded literal selection against the current trusted context
+    condition: 1 to 600 characters occur literally in the current node or validated explanation
+    code:
+      - path: app/api/lineage/route.ts
+        symbol: POST
+      - path: lib/deep-explanation.ts
+        symbol: parseDeepExplanationRequest
+    tests:
+      - path: tests/api-lineage.test.mjs
+        symbol: "API deeply explains only literal trusted selections without mutating the document"
+
+  A15:
+    kind: action
+    description: Start a selection-keyed beginner-oriented deep explanation with Pro when absent
+    code:
+      - path: components/lineage-studio.tsx
+        symbol: requestDeepReading
+      - path: lib/model-port.ts
+        symbol: VisualModelPort
+      - path: lib/deepseek-model.ts
+        symbol: deepDive
+
+  X18:
+    kind: outcome
+    description: Selection-keyed deep explanation cached and shown in the linear reading flow
+    result: visual-deep-explanation/1 appears full-width without document or route mutation and remains recoverable after focus changes
+
+  D19:
+    kind: decision
+    description: Resolve the stable deep-selection identity against ready, pending, error, or absent task state
+    condition: document, source-node content, normalized subject, parent protocol, and full trusted parent explanation fingerprint match
+    code:
+      - path: lib/deep-reading-cache.mjs
+        symbol: createDeepReadingStore
+    tests:
+      - path: tests/deep-reading-cache.test.mjs
+        symbol: "A and B deep tasks settle independently and cached results restore without refetch"
+
+  X22:
+    kind: outcome
+    description: Ready deep reading restored from cache
+    result: Existing result becomes active immediately without another provider request
+
+  X23:
+    kind: outcome
+    description: Existing pending deep task focused
+    result: Its original request continues and no sibling task is cancelled
+
+  E7:
+    kind: entry
+    description: User dismisses one explanation card
+    trigger: Card-local close control
+    code:
+      - path: components/lineage-scene-primitives.tsx
+        symbol: TermWorkspace
+
+  A16:
+    kind: action
+    description: Remove only the selected card identity from the visible rail
+    code:
+      - path: components/lineage-studio.tsx
+        symbol: closeTermCard
+
+  X19:
+    kind: outcome
+    description: Hidden explanation remains recoverable
+    result: Cached content and any in-flight task remain intact until document invalidation or bounded eviction
+
+  D20:
+    kind: decision
+    description: Classify whether an identifiable primary object is complete, excerpt-only, or unavailable
+    condition: user-supplied or safely public-domain material may be complete; protected material is bounded; unverifiable material is not reconstructed
+    code:
+      - path: lib/primary-material.ts
+        symbol: parsePrimaryMaterial
+    tests:
+      - path: tests/primary-material.test.mjs
+        symbol: "primary material distinguishes complete excerpt and unavailable content"
+
+  X24:
+    kind: outcome
+    description: Complete primary material shown before interpretation
+    result: User-supplied or safely public-domain material is readable in the main flow
+
+  X25:
+    kind: outcome
+    description: Bounded primary-material excerpt shown before interpretation
+    result: Protected content is limited and visibly labeled as an excerpt
+
+  X26:
+    kind: outcome
+    description: Unavailable primary material reported without fabrication
+    result: Interpretation can continue with an explicit source limitation
+
+  G1:
+    kind: safeguard
+    description: Full visual-document graph validation
+    safeguard_type: integrity
+    guarantee: Root, links, cycles, depth, node count, child count, and same-scene relation constraints hold
+    protects: [D2, D6, A6]
+    failure_behavior: Reject before returning a candidate document
+    code:
+      - path: lib/visual-contract-parse.ts
+        symbol: assertDocumentGraph
+    tests:
+      - path: tests/contracts.test.mjs
+        symbol: "visual document protocol supports recursive semantic scenes instead of four fixed stages"
+
+  G2:
+    kind: safeguard
+    description: Expansion scope isolation
+    safeguard_type: integrity
+    guarantee: Only the selected node and its new direct children can change
+    protects: [A5, D6]
+    failure_behavior: Reject the operation batch
+    code:
+      - path: lib/deepseek-model.ts
+        symbol: assertExpansionScope
+    tests:
+      - path: tests/deepseek-model.test.mjs
+        symbol: "DeepSeek expand assembles operation envelopes, IDs, and graph fields locally"
+
+  G3:
+    kind: safeguard
+    description: Fabricated-source rejection
+    safeguard_type: validation
+    guarantee: No evidence is introduced without supplied retrieval context
+    protects: [D2, D6]
+    failure_behavior: Reject before client adoption
+    code:
+      - path: lib/source-safety.ts
+        symbol: assertExpansionHasNoFabricatedSources
+    tests:
+      - path: tests/contracts.test.mjs
+        symbol: "source safety still rejects invented evidence"
+
+  G4:
+    kind: safeguard
+    description: Request identity, task isolation, and bounded cancellation
+    safeguard_type: concurrency
+    guarantee: Document requests remain epoch-guarded while each definition or dive generation can settle only its own stable task identity; selecting or hiding another item does not cancel it
+    protects: [A1, A4, A8, A13, A15, D18, D19]
+    failure_behavior: Ignore a stale generation for the same identity and cancel task families only on document or trusted-context invalidation
+    code:
+      - path: components/lineage-studio.tsx
+        symbol: LineageStudio
+      - path: lib/deep-reading-cache.mjs
+        symbol: createDeepReadingStore
+      - path: lib/model-port.ts
+        symbol: signal
+      - path: lib/deepseek-model.ts
+        symbol: providerRequestSignal
+    tests:
+      - path: tests/deepseek-model.test.mjs
+        symbol: "DeepSeek caller abort cancels the upstream request without provider retry"
+      - path: tests/client-navigation.test.mjs
+        symbol: "term card navigation preserves hidden work and guards the owning entry"
+      - path: tests/deep-reading-cache.test.mjs
+        symbol: "A and B deep tasks settle independently and cached results restore without refetch"
+
+  G5:
+    kind: safeguard
+    description: Provider credential isolation and exact echo rejection
+    safeguard_type: privacy
+    guarantee: Credentials remain server-side or in the authenticated companion and a successful DeepSeek or OpenAI payload containing the exact active Key is rejected before status handling content extraction validation or state adoption
+    protects: [A2, A9]
+    failure_behavior: Return a non-retryable provider_response_invalid error without serializing the Key or unsafe provider payload
+    code:
+      - path: lib/model-port.ts
+        symbol: resolveVisualModel
+      - path: lib/provider-response-safety.ts
+        symbol: assertProviderCredentialNotEchoed
+      - path: lib/deepseek-model.ts
+        symbol: requestProviderCompletion
+      - path: lib/openai-model.ts
+        symbol: OpenAIVisualModel
+    tests:
+      - path: tests/model-settings.test.mjs
+        symbol: "model settings never echo a credential when the companion is unavailable"
+      - path: tests/deepseek-model.test.mjs
+        symbol: "DeepSeek rejects a successful response that echoes its credential"
+      - path: tests/deepseek-model.test.mjs
+        symbol: "OpenAI rejects a successful response that echoes its credential"
+
+  G6:
+    kind: safeguard
+    description: Explanatory content and boundary-safe annotation validation
+    safeguard_type: validation
+    guarantee: Content is bounded and non-repetitive; interactive terms are literal boundary-safe spans, longer overlaps win, and one-character Han terms cannot split ordinary compounds; invalid optional short-definition annotations are dropped without weakening core prose, source, signed-context, recursion, or math validation
+    protects: [D2, D6, D7, D16]
+    failure_behavior: Reject invalid core generated content or client action; drop only invalid optional annotation candidates before they become interactive
+    code:
+      - path: lib/annotated-term-match.mjs
+        symbol: findAnnotatedTermMatches
+      - path: lib/visual-content-quality.ts
+        symbol: assertVisualDocumentContentQuality
+      - path: lib/term-explanation.ts
+        symbol: parseTermExplanation
+    tests:
+      - path: tests/annotated-term-match.test.mjs
+        symbol: "single Han terms require a semantic boundary without breaking long or ASCII matching"
+      - path: tests/content-quality.test.mjs
+        symbol: "terms are single-line, normalized-deduplicated, bounded, and present in content"
+      - path: tests/explanation-contracts.test.mjs
+        symbol: "invalid optional nested annotations are dropped without rejecting useful prose"
+
+  G7:
+    kind: safeguard
+    description: Body-first auto-sizing projection with a non-covering explanation rail
+    safeguard_type: integrity
+    guarantee: Direct answers and paragraphs remain more prominent than headings; desktop term cards stack from the top without covering the reading column; narrow layouts remain bounded and horizontally unclipped
+    protects: [X3, X4, X7, X10, X18, X20, X21]
+    failure_behavior: Responsive normal-flow content and independently scrolling explanation region remain readable
+    code:
+      - path: components/lineage-stage.tsx
+        symbol: StageColumn
+      - path: components/lineage-scene-primitives.tsx
+        symbol: TermWorkspace
+      - path: app/styles/scenes.css
+        symbol: ".knowledge-spine"
+      - path: app/styles/states.css
+        symbol: ".term-workspace"
+    tests:
+      - path: harness/minimal-visual-conversation.mjs
+        symbol: knowledge-network knowledge-spine
+
+  G8:
+    kind: safeguard
+    description: Deterministic canonical assembly
+    safeguard_type: integrity
+    guarantee: Models cannot choose IDs, versions, hierarchy duplication, evidence arrays, or operation envelope fields
+    protects: [D10, D2, D6]
+    failure_behavior: Reject draft before canonical output
+    code:
+      - path: lib/deepseek-draft-contract.ts
+        symbol: assembleVisualDocument
+    tests:
+      - path: tests/deepseek-draft-contract.test.mjs
+        symbol: "create assembly owns deterministic IDs and resolves relation indexes locally"
+
+  G9:
+    kind: safeguard
+    description: Safe structured-generation diagnostics
+    safeguard_type: observability
+    guarantee: Diagnostics distinguish action and failure class without prompts, questions, selections, bodies, or credentials
+    protects: [A9, C1, C2]
+    failure_behavior: Emit bounded metadata and typed browser error
+    code:
+      - path: lib/deepseek-model.ts
+        symbol: recordStructuredGenerationEvent
+    tests:
+      - path: tests/deepseek-model.test.mjs
+        symbol: "DeepSeek keeps provider retry separate from content repair"
+
+  G10:
+    kind: safeguard
+    description: Stable current-layer term priority and trusted-content cache
+    safeguard_type: integrity
+    guarantee: Only active-scene and visible-entrance annotations are prepared in one-node batches of at most eight; unchanged identities survive unrelated expansion
+    protects: [A10, A11]
+    failure_behavior: Skip stale, cached, in-flight, failed, or malformed candidates
+    code:
+      - path: lib/term-prefetch-priority.mjs
+        symbol: buildTermPrefetchBatches
+    tests:
+      - path: tests/term-prefetch-priority.test.mjs
+        symbol: "term prefetch excludes cached in-flight and failed content identities"
+
+  G11:
+    kind: safeguard
+    description: Action-specific model routing through one DeepSeek credential
+    safeguard_type: integrity
+    guarantee: Create, expand, and dive use Pro; base and nested definitions use Flash
+    protects: [A9, A11, A13, A14, A15]
+    failure_behavior: Reject a non-allowlisted model before forwarding
+    code:
+      - path: lib/deepseek-model.ts
+        symbol: DeepSeekVisualModel
+    tests:
+      - path: tests/deepseek-model.test.mjs
+        symbol: "DeepSeek batches same-scene definitions on Flash and restores request order"
+
+  G12:
+    kind: safeguard
+    description: One-frontier sequential scene preparation
+    safeguard_type: concurrency
+    guarantee: Only direct entrances of the active scene are expanded, one version-advancing request at a time
+    protects: [A12, A13, D15]
+    failure_behavior: Cancel or discard work when route, question, visibility, epoch, or base version changes
+    code:
+      - path: components/lineage-studio.tsx
+        symbol: LineageStudio
+      - path: lib/scene-prefetch-priority.mjs
+        symbol: buildScenePrefetchQueue
+    tests:
+      - path: tests/scene-prefetch-priority.test.mjs
+        symbol: "scene prefetch includes only the active semantic frontier"
+
+  G13:
+    kind: safeguard
+    description: Trusted recursive-definition and deep-selection context
+    safeguard_type: validation
+    guarantee: Nested terms and deep selections come only from validated literal content with bounded length and recursion
+    protects: [D16, D17, A14, A15]
+    failure_behavior: Reject before provider access
+    code:
+      - path: app/api/lineage/route.ts
+        symbol: POST
+      - path: lib/explanation-context-token.ts
+        symbol: verifyExplanationContextToken
+    tests:
+      - path: tests/explanation-context-token.test.mjs
+        symbol: "tampering and cross-document or cross-node reuse fail closed"
+      - path: tests/api-lineage.test.mjs
+        symbol: "API deeply explains only literal trusted selections without mutating the document"
+
+  G14:
+    kind: safeguard
+    description: Explanation visibility is independent from cache and task lifetime
+    safeguard_type: concurrency
+    guarantee: Dismissing or switching a term/deep explanation changes only visible focus; pending and ready identities remain recoverable without duplicate requests
+    protects: [D18, D19, A16, X19, X20, X21, X22, X23]
+    failure_behavior: Reopen the existing task entry and never infer eviction from invisibility
+    code:
+      - path: lib/explanation-task-cache.mjs
+        symbol: createExplanationTaskStore
+      - path: lib/deep-reading-cache.mjs
+        symbol: createDeepReadingStore
+    tests:
+      - path: tests/explanation-task-cache.test.mjs
+        symbol: "term cards preserve pending and ready work across hide and reopen"
+      - path: tests/deep-reading-cache.test.mjs
+        symbol: "A and B deep tasks settle independently and cached results restore without refetch"
+
+  A24:
+    kind: action
+    description: Build a concise root concept graph from canonical first-level nodes and relations and render the locally generated Mermaid as an isolated image with an explicit large-view entry
+    code:
+      - path: lib/opening-concept-diagram.ts
+        symbol: buildOpeningConceptMermaid
+      - path: components/opening-concept-diagram.tsx
+        symbol: OpeningConceptDiagram
+      - path: components/lineage-stage.tsx
+        symbol: StageColumn
+    tests:
+      - path: tests/semantic-diagram.test.mjs
+        symbol: "opening Mermaid source is deterministic bounded and syntax safe"
+      - path: tests/semantic-diagram.test.mjs
+        symbol: "root scenes use the Mermaid concept graph while deeper scenes keep the semantic projection"
+
+  G15:
+    kind: safeguard
+    description: Safe renderer-owned Mermaid and semantic diagram projection
+    safeguard_type: integrity
+    guarantee: The root Mermaid source and all deeper relationship figures are generated only from canonical nodes, ordered child IDs, relations, and view; model output never supplies executable Mermaid, SVG, HTML, coordinates, styles, or components; the enlarged viewer reuses the isolated vector image, clamps local scale to 100–300 percent, and never mutates canonical knowledge or navigation
+    protects: [A24, A25, X34, X3, X4, X7]
+    failure_behavior: Fall back to the same linear prose when no useful relation projection exists; closing the viewer returns to the unchanged reading flow
+    code:
+      - path: components/semantic-diagram.tsx
+        symbol: SemanticDiagram
+      - path: components/opening-concept-diagram.tsx
+        symbol: OpeningConceptDiagram
+      - path: lib/opening-concept-diagram.ts
+        symbol: buildOpeningConceptMermaid
+    tests:
+      - path: tests/semantic-diagram.test.mjs
+        symbol: "semantic diagram is a renderer-owned projection of canonical scene data"
+
+  E10:
+    kind: entry
+    description: User selects View large on the rendered root concept graph
+    trigger: opening-concept-expand button click
+    code:
+      - path: components/opening-concept-diagram.tsx
+        symbol: OpeningConceptDiagram
+
+  A25:
+    kind: action
+    description: Open the same isolated vector image in a modal viewer with fit, zoom-in, zoom-out, and close controls
+    code:
+      - path: components/opening-concept-diagram.tsx
+        symbol: OpeningConceptDiagram
+
+  X34:
+    kind: outcome
+    description: Enlarged concept viewer closes
+    result: The user returns to the same reading position with canonical document and navigation unchanged
+
+  G16:
+    kind: safeguard
+    description: Contextual three-state math policy
+    safeguard_type: validation
+    guarantee: Explicit no-math requests forbid notation; explicit requests allow it; optional mode permits only bounded clarifying notation followed by plain-language meaning
+    protects: [D2, D6, D10, A15]
+    failure_behavior: Reject and repair generated content that violates the derived math mode
+    code:
+      - path: lib/visual-content-quality.ts
+        symbol: resolveMathMode
+    tests:
+      - path: tests/content-quality.test.mjs
+        symbol: "math mode distinguishes avoid optional and requested explanations"
+
+  G17:
+    kind: safeguard
+    description: Primary-material provenance and copyright boundary
+    safeguard_type: privacy
+    guarantee: Complete material is limited to user-supplied or safely public-domain text; protected works use bounded excerpts; unavailable or unverifiable text is explicitly absent rather than fabricated
+    protects: [D20, X24, X25, X26]
+    failure_behavior: Preserve interpretation but label the primary material limitation before client adoption
+    code:
+      - path: lib/primary-material.ts
+        symbol: parsePrimaryMaterial
+    tests:
+      - path: tests/primary-material.test.mjs
+        symbol: "primary material distinguishes complete excerpt and unavailable content"
+
+  D21:
+    kind: decision
+    description: Decide whether the selected profile and page visibility permit background scene preparation
+    condition: page is visible and the parsed profile has a non-zero scene-call limit
+    code:
+      - path: lib/prefetch-policy.mjs
+        symbol: buildPrefetchPlan
+      - path: components/lineage-studio.tsx
+        symbol: LineageStudio
+    tests:
+      - path: tests/prefetch-policy.test.mjs
+        symbol: "on-demand mode performs zero background work without mutating candidates"
+
+  D22:
+    kind: decision
+    description: Charge matching receipts and current reservations against the scene frontier hard limit
+    condition: at least one scene call remains for the current profile and frontier
+    code:
+      - path: lib/prefetch-policy.mjs
+        symbol: buildPrefetchPlan
+    tests:
+      - path: tests/prefetch-policy.test.mjs
+        symbol: "matching receipts and current reservations consume the same hard budget"
+      - path: tests/prefetch-policy.test.mjs
+        symbol: "exhausted and excessive counts clamp remaining work to zero"
+
+  D23:
+    kind: decision
+    description: Decide whether the selected profile and page visibility permit background term preparation
+    condition: page is visible and the parsed profile has a non-zero term-batch limit
+    code:
+      - path: lib/prefetch-policy.mjs
+        symbol: buildPrefetchPlan
+      - path: components/lineage-studio.tsx
+        symbol: LineageStudio
+    tests:
+      - path: tests/prefetch-policy.test.mjs
+        symbol: "on-demand mode performs zero background work without mutating candidates"
+
+  D24:
+    kind: decision
+    description: Charge matching receipts and current reservations against the term frontier hard limit
+    condition: at least one term batch remains for the current profile and frontier
+    code:
+      - path: lib/prefetch-policy.mjs
+        symbol: buildPrefetchPlan
+    tests:
+      - path: tests/prefetch-policy.test.mjs
+        symbol: "matching receipts and current reservations consume the same hard budget"
+      - path: tests/prefetch-policy.test.mjs
+        symbol: "exhausted and excessive counts clamp remaining work to zero"
+
+  D25:
+    kind: decision
+    description: Route a failed or aborted issued request to foreground handling or the owning background receipt
+    condition: request lane is foreground, background scene, or background term
+    code:
+      - path: components/lineage-studio.tsx
+        symbol: appendUsageReceipt
+      - path: lib/deepseek-model.ts
+        symbol: requestProviderCompletion
+    tests:
+      - path: tests/client-navigation.test.mjs
+        symbol: "background work records one receipt for every issued terminal outcome"
+
+  D26:
+    kind: decision
+    description: Route an invalid-after-repair issued request to foreground rejection or the owning background receipt
+    condition: request lane is foreground, background scene, or background term
+    code:
+      - path: components/lineage-studio.tsx
+        symbol: appendUsageReceipt
+      - path: lib/deepseek-model.ts
+        symbol: requestStructuredDraft
+    tests:
+      - path: tests/client-navigation.test.mjs
+        symbol: "background work records one receipt for every issued terminal outcome"
+
+  D27:
+    kind: decision
+    description: Adopt a settled scene result only when it remains valid and authoritative
+    condition: receipt outcome is success and request epoch, base version, and active frontier still match
+    code:
+      - path: components/lineage-studio.tsx
+        symbol: appendUsageReceipt
+    tests:
+      - path: tests/client-navigation.test.mjs
+        symbol: "background work records one receipt for every issued terminal outcome"
+      - path: tests/client-navigation.test.mjs
+        symbol: "scene preparation is one-frontier, cancellable, and version guarded"
+
+  D28:
+    kind: decision
+    description: Cache a settled term-batch result only when it is valid and still belongs to the active identity
+    condition: receipt outcome is success and the requested node and term identities remain current
+    code:
+      - path: components/lineage-studio.tsx
+        symbol: appendUsageReceipt
+    tests:
+      - path: tests/client-navigation.test.mjs
+        symbol: "background work records one receipt for every issued terminal outcome"
+
+  A17:
+    kind: action
+    description: Settle exactly one privacy-safe usage receipt for an issued background scene request
+    code:
+      - path: components/lineage-studio.tsx
+        symbol: appendUsageReceipt
+    tests:
+      - path: tests/client-navigation.test.mjs
+        symbol: "background work records one receipt for every issued terminal outcome"
+
+  A18:
+    kind: action
+    description: Settle exactly one privacy-safe usage receipt for an issued background term-batch request
+    code:
+      - path: components/lineage-studio.tsx
+        symbol: appendUsageReceipt
+    tests:
+      - path: tests/client-navigation.test.mjs
+        symbol: "background work records one receipt for every issued terminal outcome"
+
+  E8:
+    kind: entry
+    description: After local hydration, the user selects on-demand, balanced, or deep pre-generation with or without an accepted document
+    trigger: KnowledgeSessionControls profile selection
+    code:
+      - path: components/knowledge-session-controls.tsx
+        symbol: KnowledgeSessionControls
+      - path: components/lineage-studio.tsx
+        symbol: changePrefetchProfile
+
+  A19:
+    kind: action
+    description: Abort existing background controllers, suspend effective preparation, and replace the pending settle timer so only the latest profile intent can restart work
+    code:
+      - path: components/lineage-studio.tsx
+        symbol: changePrefetchProfile
+    tests:
+      - path: tests/client-navigation.test.mjs
+        symbol: "rapid profile switching coalesces background restart to the latest intent"
+      - path: tests/client-navigation.test.mjs
+        symbol: "empty composer exposes profile and saved-session controls after hydration"
+
+  X27:
+    kind: outcome
+    description: Background scene preparation is disabled for the current conditions
+    result: No scene request starts and candidates remain unchanged
+
+  X28:
+    kind: outcome
+    description: Scene frontier budget is exhausted
+    result: No further scene request starts for the matching frontier
+
+  X29:
+    kind: outcome
+    description: Background term preparation is disabled for the current conditions
+    result: No term-batch request starts and candidates remain unchanged
+
+  X30:
+    kind: outcome
+    description: Term frontier budget is exhausted
+    result: No further term-batch request starts for the matching frontier
+
+  X31:
+    kind: outcome
+    description: The new pre-generation profile applies to the current accepted session or is inherited by the first accepted session
+    result: Existing background scene and term work is cancelled; intermediate profile choices start no replacement work; only the latest stable choice applies, while selection alone creates no persisted history record and exposes no export action
+    tests:
+      - path: tests/client-navigation.test.mjs
+        symbol: "rapid profile switching coalesces background restart to the latest intent"
+      - path: tests/client-navigation.test.mjs
+        symbol: "empty composer exposes profile and saved-session controls after hydration"
+
+  G18:
+    kind: safeguard
+    description: Per-profile one-frontier hard budgets, latest-intent profile switching, background-only cancellation, and empty-workspace side-effect isolation
+    safeguard_type: rate-limit
+    guarantee: On-demand starts no background request; balanced and deep charge matching receipts and current reservations against fixed limits; profile changes abort only background scene and term controllers and coalesce to one latest stable restart; without an accepted document a profile choice cannot schedule preparation, create persisted history, or expose export
+    protects: [D21, D22, D23, D24, A19, X31]
+    failure_behavior: Stop preparing the current frontier without clearing completed caches or foreground document, term, or deep-reading work
+    code:
+      - path: lib/prefetch-policy.mjs
+        symbol: PREFETCH_PROFILE_LIMITS
+      - path: lib/prefetch-policy.mjs
+        symbol: buildPrefetchPlan
+      - path: components/lineage-studio.tsx
+        symbol: changePrefetchProfile
+      - path: tests/client-navigation.test.mjs
+        symbol: "rapid profile switching coalesces background restart to the latest intent"
+    tests:
+      - path: tests/prefetch-policy.test.mjs
+        symbol: "profiles expose the exact hard per-frontier limits"
+      - path: tests/prefetch-policy.test.mjs
+        symbol: "balanced and deep trim only the caller-provided top-level candidates"
+      - path: tests/prefetch-policy.test.mjs
+        symbol: "matching receipts and current reservations consume the same hard budget"
+      - path: tests/client-navigation.test.mjs
+        symbol: "rapid profile switching coalesces background restart to the latest intent"
+      - path: tests/client-navigation.test.mjs
+        symbol: "empty composer exposes profile and saved-session controls after hydration"
+
+  G19:
+    kind: safeguard
+    description: Provider-reported privacy-safe usage receipt settlement
+    safeguard_type: privacy
+    guarantee: Every issued background request records exactly one receipt for success, error, abort, or discard; provider counts are numeric or null and no content or credential enters a receipt
+    protects: [A17, A18]
+    failure_behavior: Work cancelled before issuance records nothing; replayed receipt IDs count once and unavailable counts remain null
+    code:
+      - path: lib/deepseek-model.ts
+        symbol: parseProviderTokenUsage
+      - path: components/lineage-studio.tsx
+        symbol: appendUsageReceipt
+      - path: components/lineage-studio.tsx
+        symbol: aggregateModelUsage
+    tests:
+      - path: tests/client-navigation.test.mjs
+        symbol: "background work records one receipt for every issued terminal outcome"
+      - path: tests/deepseek-model.test.mjs
+        symbol: "DeepSeek JSON mode follows the official boundary and reports provider usage"
+      - path: tests/knowledge-session.test.mjs
+        symbol: "usage accepts only finite numeric counts or null and enforces lane metadata"
+
+  E9:
+    kind: entry
+    description: User selects bounded prose rendered in the current semantic or explanation context
+    trigger: SelectionAction appears after pointer or keyboard selection
+    code:
+      - path: components/lineage-studio.tsx
+        symbol: captureSelection
+      - path: components/lineage-scene-primitives.tsx
+        symbol: SelectionAction
+    tests:
+      - path: tests/client-navigation.test.mjs
+        symbol: "selected prose offers independent AI question and deep-reading actions"
+
+  D29:
+    kind: decision
+    description: Route the explicit selection action to Ask AI or structured Deepen
+    condition: user chooses one of the two SelectionAction buttons
+    code:
+      - path: components/lineage-scene-primitives.tsx
+        symbol: SelectionAction
+      - path: components/lineage-studio.tsx
+        symbol: askAboutSelectedText
+      - path: components/lineage-studio.tsx
+        symbol: deepenSelectedText
+    tests:
+      - path: tests/client-navigation.test.mjs
+        symbol: "selected prose offers independent AI question and deep-reading actions"
+
+  A20:
+    kind: action
+    description: Freeze the selected session node quote and optional explanation context for the separate chat panel
+    code:
+      - path: components/lineage-studio.tsx
+        symbol: askAboutSelectedText
+      - path: components/selection-chat-panel.tsx
+        symbol: SelectionChatPanel
+
+  X32:
+    kind: outcome
+    description: Selection chat composer opens without a semantic-lineage request
+    result: Canonical document navigation term cards and deep-reading cache remain unchanged
+
+  X33:
+    kind: outcome
+    description: Main-question search fails before visual model generation
+    result: Return a typed configuration provider empty-result abort or response error and preserve the last accepted client state
+    tests:
+      - path: tests/api-lineage.test.mjs
+        symbol: "search configuration and provider failures stop before the model with typed errors"
+      - path: tests/api-lineage.test.mjs
+        symbol: "request abort reaches the in-flight internal search and prevents model execution"
+
+  X35:
+    kind: outcome
+    description: Untrusted or oversized lineage request is rejected
+    result: Return a typed 403, 415, 413, or 400 response without search, provider, persistence, or owner-cookie side effects
+    tests:
+      - path: tests/api-lineage.test.mjs
+        symbol: "API rejects cross-site non-JSON and oversized requests before external work"
+
+  G20:
+    kind: safeguard
+    description: Independent Ask AI and structured Deepen routes
+    safeguard_type: integrity
+    guarantee: Asking transfers only a frozen chat context while Deepen alone enters the semantic dive pipeline
+    protects: [D29, A20, X32]
+    failure_behavior: A chat open or chat turn can never be adopted as semantic document or deep-reading cache state
+    code:
+      - path: components/lineage-scene-primitives.tsx
+        symbol: SelectionAction
+      - path: components/lineage-studio.tsx
+        symbol: askAboutSelectedText
+      - path: components/lineage-studio.tsx
+        symbol: deepenSelectedText
+    tests:
+      - path: tests/client-navigation.test.mjs
+        symbol: "selected prose offers independent AI question and deep-reading actions"
+
+  G21:
+    kind: safeguard
+    description: Explicit bounded search and canonical evidence boundary
+    safeguard_type: validation
+    guarantee: Main create performs no search by default; on performs exactly one owner-scoped bounded search and accepts only supplied stable IDs mapped to server-held canonical source fields
+    protects: [A21, A22, A23]
+    failure_behavior: Stop before model generation on search failure or empty results; after generation run one bounded repair and reject unrecognized or unused evidence
+    code:
+      - path: app/api/lineage/route.ts
+        symbol: POST
+      - path: lib/server-web-search.ts
+        symbol: searchVisualEvidence
+      - path: lib/deepseek-draft-contract.ts
+        symbol: resolveEvidence
+      - path: lib/source-safety.ts
+        symbol: assertCreateHasNoFabricatedSources
+    tests:
+      - path: tests/api-lineage.test.mjs
+        symbol: "create with searchMode off never calls the internal search service"
+      - path: tests/api-lineage.test.mjs
+        symbol: "create with searchMode on searches once and gives the model only stable evidence IDs"
+      - path: tests/deepseek-draft-contract.test.mjs
+        symbol: "create assembly maps only provided stable search references into canonical evidence"
+
+  G22:
+    kind: safeguard
+    description: Paid model request admission guard
+    safeguard_type: authorization
+    guarantee: Browser-origin mutations must be same-origin JSON and every request body is bounded before any configured model or search credential can be used
+    protects: [D33, A21, A9]
+    failure_behavior: Return a typed no-store rejection before resolving the model, calling search, calling a provider, or setting an owner cookie
+    code:
+      - path: app/api/lineage/route.ts
+        symbol: assertTrustedMutation
+      - path: app/api/lineage/route.ts
+        symbol: readBody
+    tests:
+      - path: tests/api-lineage.test.mjs
+        symbol: "API rejects cross-site non-JSON and oversized requests before external work"

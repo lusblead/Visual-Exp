@@ -1,0 +1,77 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Release gate
+    runs-on: windows-latest
+    timeout-minutes: 35
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Reject tracked runtime or credential files
+        shell: pwsh
+        run: |
+          $currentPaths = git ls-files
+          $historyPaths = git rev-list --objects --all | ForEach-Object {
+            if ($_ -match '^[0-9a-f]{40,64} (.+)$') { $Matches[1] }
+          }
+          $forbidden = @($currentPaths) + @($historyPaths) |
+            Sort-Object -Unique |
+            Where-Object {
+              (($_ -match '(^|/)\.env($|\.)') -and $_ -notmatch '(^|/)\.env\.example$') -or
+              ($_ -match '(^|/)backend/data/') -or
+              ($_ -match '\.(mv\.db|trace\.db|sqlite3?|log|pem|p12|pfx|key)$')
+            }
+          if ($forbidden) {
+            $forbidden | ForEach-Object { Write-Error "Forbidden current/history path: $_" }
+            exit 1
+          }
+
+      - name: Scan current source and complete Git history for secrets
+        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_ENABLE_COMMENTS: "false"
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "false"
+          GITLEAKS_VERSION: 8.30.1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: maven
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run release gate
+        run: npm run harness:minimal

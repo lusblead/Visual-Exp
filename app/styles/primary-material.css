@@ -1,0 +1,86 @@
+.primary-material {
+  width: 100%;
+  padding: clamp(26px, 4vw, 44px) 0 clamp(32px, 5vw, 54px);
+  border-bottom: 1px solid var(--line);
+}
+
+.primary-material-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 4px 18px;
+  margin-bottom: 22px;
+}
+
+.primary-material-kicker {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 720;
+  letter-spacing: 0.12em;
+}
+
+.primary-material h2 {
+  margin: 0;
+  font-size: clamp(20px, 2.6vw, 28px);
+  font-weight: 620;
+  letter-spacing: -0.025em;
+  line-height: 1.24;
+}
+
+.primary-material-creator {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 14px;
+}
+
+.primary-material-body {
+  color: var(--ink);
+  font-family: ui-serif, "Songti SC", "STSong", "Noto Serif CJK SC", serif;
+  font-size: clamp(18px, 2vw, 21px);
+  font-weight: 480;
+  letter-spacing: 0.02em;
+  line-height: 1.95;
+  white-space: pre-wrap;
+}
+
+.primary-material-unavailable {
+  max-width: 62ch;
+  margin: 0;
+  color: var(--ink);
+  font-size: 16px;
+  line-height: 1.8;
+}
+
+.primary-material-source {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 18px;
+  margin-top: 24px;
+  color: var(--ink-soft);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.primary-material-source a {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  color: var(--ink);
+  font-weight: 620;
+  text-underline-offset: 4px;
+}
+
+@media (max-width: 760px) {
+  .primary-material-header {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .primary-material-body {
+    font-size: 18px;
+    line-height: 1.9;
+  }
+}

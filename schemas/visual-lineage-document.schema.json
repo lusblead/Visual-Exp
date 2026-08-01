@@ -1,0 +1,197 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://visual-explanation.local/schemas/visual-lineage-document.schema.json",
+  "title": "Visual Explanation Document v2",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "protocol": { "const": "visual-explanation-document/2" },
+    "id": { "type": "string", "minLength": 1 },
+    "question": { "type": "string", "minLength": 1 },
+    "title": { "type": "string", "minLength": 1 },
+    "thesis": { "type": "string", "minLength": 1 },
+    "rootId": { "type": "string", "minLength": 1 },
+    "primaryMaterial": {
+      "anyOf": [
+        { "$ref": "#/$defs/primaryMaterial" },
+        { "type": "null" }
+      ]
+    },
+    "nodes": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 80,
+      "items": { "$ref": "#/$defs/node" }
+    },
+    "relations": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/relation" }
+    },
+    "version": { "type": "integer", "minimum": 1 }
+  },
+  "required": [
+    "protocol",
+    "id",
+    "question",
+    "title",
+    "thesis",
+    "rootId",
+    "nodes",
+    "relations",
+    "version"
+  ],
+  "$defs": {
+    "primaryMaterial": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "protocol": { "const": "visual-primary-material/1" },
+        "kind": {
+          "type": "string",
+          "enum": ["poem", "passage", "statute", "code", "other"]
+        },
+        "title": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "creator": { "type": ["string", "null"] },
+        "display": {
+          "type": "string",
+          "enum": ["complete", "excerpt", "unavailable"]
+        },
+        "provenance": {
+          "type": "string",
+          "enum": [
+            "user_supplied",
+            "public_domain_verified",
+            "licensed",
+            "protected",
+            "unknown"
+          ]
+        },
+        "body": { "type": ["string", "null"] },
+        "attribution": { "type": "string", "minLength": 1 },
+        "sourceUrl": { "type": ["string", "null"] },
+        "omissionReason": { "type": ["string", "null"] }
+      },
+      "required": [
+        "protocol",
+        "kind",
+        "title",
+        "creator",
+        "display",
+        "provenance",
+        "body",
+        "attribution",
+        "sourceUrl",
+        "omissionReason"
+      ]
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "label": { "type": "string", "minLength": 1 },
+        "detail": { "type": "string", "minLength": 1 },
+        "url": { "type": ["string", "null"] }
+      },
+      "required": ["label", "detail", "url"]
+    },
+    "node": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "parentId": { "type": ["string", "null"] },
+        "title": { "type": "string", "minLength": 1 },
+        "eyebrow": { "type": "string" },
+        "summary": { "type": "string", "minLength": 1 },
+        "detail": { "type": "string" },
+        "terms": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1, "maxLength": 40 },
+          "uniqueItems": true,
+          "maxItems": 8
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "topic",
+            "stage",
+            "concept",
+            "process",
+            "system",
+            "argument",
+            "example",
+            "evidence",
+            "question"
+          ]
+        },
+        "view": {
+          "type": "string",
+          "enum": ["grid", "sequence", "timeline", "compare", "cluster"]
+        },
+        "depth": { "type": "integer", "minimum": 0, "maximum": 12 },
+        "childIds": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "uniqueItems": true,
+          "maxItems": 8
+        },
+        "expandable": { "type": "boolean" },
+        "expansionState": {
+          "type": "string",
+          "enum": ["outline", "expanded", "terminal"]
+        },
+        "emphasis": {
+          "type": "string",
+          "enum": ["primary", "secondary", "detail"]
+        },
+        "confidence": {
+          "type": "string",
+          "enum": ["high", "medium", "low"]
+        },
+        "sourceStatus": {
+          "type": "string",
+          "enum": ["source_backed", "model_knowledge", "needs_source"]
+        },
+        "evidence": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/evidence" }
+        }
+      },
+      "required": [
+        "id",
+        "parentId",
+        "title",
+        "eyebrow",
+        "summary",
+        "detail",
+        "terms",
+        "kind",
+        "view",
+        "depth",
+        "childIds",
+        "expandable",
+        "expansionState",
+        "emphasis",
+        "confidence",
+        "sourceStatus",
+        "evidence"
+      ]
+    },
+    "relation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "scopeId": { "type": "string", "minLength": 1 },
+        "from": { "type": "string", "minLength": 1 },
+        "to": { "type": "string", "minLength": 1 },
+        "kind": {
+          "type": "string",
+          "enum": ["sequence", "supports", "contrasts", "causes", "part_of", "relates"]
+        },
+        "label": { "type": "string" }
+      },
+      "required": ["id", "scopeId", "from", "to", "kind", "label"]
+    }
+  }
+}

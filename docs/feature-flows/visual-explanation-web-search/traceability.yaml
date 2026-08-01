@@ -1,0 +1,645 @@
+version: 1
+feature_id: "visual-explanation.web-search"
+title: "Use bounded web search during AI generation"
+status: "implemented"
+
+characteristics:
+  cross_component: true
+  asynchronous: false
+  persisted_state: true
+  external_dependencies: true
+  retry_or_compensation: true
+  security_sensitive: true
+
+nodes:
+  E1:
+    kind: entry
+    description: User submits a selection-chat turn with an explicit search mode
+    trigger: SelectionChatPanel submitTurn
+    code:
+      - path: components/selection-chat-panel.tsx
+        symbol: submitTurn
+      - path: backend/src/main/java/com/visualizedexp/backend/chat/OpenAiCompatibleChatClient.java
+        symbol: complete
+    tests:
+      - path: tests/selection-chat-client.test.mjs
+        symbol: "selection chat POST defaults each turn to auto search and accepts 202"
+      - path: tests/selection-chat-client.test.mjs
+        symbol: "selection chat POST preserves an explicit force search choice"
+
+  D1:
+    kind: decision
+    description: Apply the turn's off auto or force search policy
+    condition: normalized SearchMode is OFF AUTO or FORCE
+    code:
+      - path: backend/src/main/java/com/visualizedexp/backend/chat/SearchMode.java
+        symbol: SearchMode
+      - path: backend/src/main/java/com/visualizedexp/backend/chat/OpenAiCompatibleChatClient.java
+        symbol: complete
+    tests:
+      - path: backend/src/test/java/com/visualizedexp/backend/chat/OpenAiCompatibleChatClientTest.java
+        symbol: disablesToolsAndSearchWhenModeIsOff
+      - path: backend/src/test/java/com/visualizedexp/backend/chat/OpenAiCompatibleChatClientTest.java
+        symbol: offersToolsInAutoModeButRecordsOfferedWhenModelSkipsSearch
+      - path: backend/src/test/java/com/visualizedexp/backend/chat/OpenAiCompatibleChatClientTest.java
+        symbol: forcesExactOpenAiToolChoiceAndFailsWhenModelSkipsIt
+
+  D2:
+    kind: decision
+    description: Resolve whether this owner has an active search profile
+    condition: ProviderService has one active owner-scoped SEARCH profile
+    code:
+      - path: backend/src/main/java/com/visualizedexp/backend/provider/ProviderService.java
+        symbol: hasActive
+      - path: backend/src/main/java/com/visualizedexp/backend/chat/OpenAiCompatibleChatClient.java
+        symbol: complete
+    tests:
+      - path: backend/src/test/java/com/visualizedexp/backend/chat/OpenAiCompatibleChatClientTest.java
+        symbol: completesWithoutSearchWhenNoSearchProviderIsActive
+      - path: backend/src/test/java/com/visualizedexp/backend/chat/OpenAiCompatibleChatClientTest.java
+        symbol: rejectsForceModeWhenNoSearchProviderIsActive
+
+  A1:
+    kind: action
+    description: Send the model request without tools and record disabled or unavailable search execution
+    code:
+      - path: backend/src/main/java/com/visualizedexp/backend/chat/OpenAiCompatibleChatClient.java
+        symbol: complete
+      - path: backend/src/main/java/com/visualizedexp/backend/chat/OpenAiCompatibleChatClient.java
+        symbol: systemPrompt
+    tests:
+      - path: backend/src/test/java/com/visualizedexp/backend/chat/OpenAiCompatibleChatClientTest.java
+        symbol: disablesToolsAndSearchWhenModeIsOff
+      - path: backend/src/test/java/com/visualizedexp/backend/chat/OpenAiCompatibleChatClientTest.java
+        symbol: completesWithoutSearchWhenNoSearchProviderIsActive
+
+  A2:
+    kind: action
+    description: Send the protocol-specific web_search schema with automatic tool choice
+    code:
+      - path: backend/src/main/java/com/visualizedexp/backend/chat/OpenAiCompatibleChatClient.java
+        symbol: requestOpenAiCompletion
+      - path: backend/src/main/java/com/visualizedexp/backend/chat/OpenAiCompatibleChatClient.java
+        symbol: requestAnthropicCompletion
+    external_call:
+      system: Active OpenAI Chat Completions or Anthropic Messages provider
+      timeout: 45s
+      failure_behavior: Propagate a typed provider failure and never retry by silently removing tools
+      failure_nodes: [T2, T3]
+    tests:
+      - path: backend/src/test/java/com/visualizedexp/backend/chat/OpenAiCompatibleChatClientTest.java
+        symbol: offersToolsInAutoModeButRecordsOfferedWhenModelSkipsSearch
+      - path: backend/src/test/java/com/visualizedexp/backend/chat/OpenAiCompatibleChatClientTest.java
+        symbol: mapsToolRequest4xxWithoutRetryingARequestWithoutTools
+
+  A3:
+    kind: action
+    description: Send the exact protocol-specific forced web_search tool choice
+    code:
+      - path: backend/src/main/java/com/visualizedexp/backend/chat/OpenAiCompatibleChatClient.java
+        symbol: requestOpenAiCompletion
+      - path: backend/src/main/java/com/visualizedexp/backend/chat/OpenAiCompatibleChatClient.java
+        symbol: requestAnthropicCompletion
+    external_call:
+      system: Active OpenAI Chat Completions or Anthropic Messages provider
+      timeout: 45s
+      failure_behavior: Fail visibly when the provider rejects tools or the model omits the required call
+      failure_nodes: [X2, T2, T3]
+    tests:
+      - path: backend/src/test/java/com/visualizedexp/backend/chat/OpenAiCompatibleChatClientTest.java
+        symbol: forcesExactOpenAiToolChoiceAndFailsWhenModelSkipsIt
+      - path: backend/src/test/java/com/visualizedexp/backend/chat/OpenAiCompatibleChatClientTest.java
+        symbol: forcesExactAnthropicToolChoice
+
+  D3:
+    kind: decision
+    description: Distinguish final assistant content from protocol-specific tool requests and enforce force completion
+    condition: response contains tool_calls or tool_use; otherwise force mode must already have executed at least one call
+    code:
+      - path: backend/src/main/java/com/visualizedexp/backend/chat/OpenAiCompatibleChatClient.java
+        symbol: completeOpenAi
+      - path: backend/src/main/java/com/visualizedexp/backend/chat/OpenAiCompatibleChatClient.java
+        symbol: completeAnthropic
+    tests:
+      - path: backend/src/test/java/com/visualizedexp/backend/chat/OpenAiCompatibleChatClientTest.java
+        symbol: forcesExactOpenAiToolChoiceAndFailsWhenModelSkipsIt
+      - path: backend/src/test/java/com/visualizedexp/backend/chat/OpenAiCompatibleChatClientTest.java
+        symbol: executesAnthropicToolUseLoopWithNativeMessagesAndAuthentication
+
+  D4:
+    kind: decision
+    description: Validate every model tool call and enforce the two-call total budget
+    condition: unique bounded ID type function name web_search strict JSON keys bounded query allowed freshness and cumulative count at most two
+    code:
+      - path: backend/src/main/java/com/visualizedexp/backend/chat/OpenAiCompatibleChatClient.java
+        symbol: validateToolCall
+    tests:
+      - path: backend/src/test/java/com/visualizedexp/backend/chat/OpenAiCompatibleChatClientTest.java
+        symbol: rejectsUnsupportedOrOverBudgetToolCallsBeforeSearchExecution
+
+  A4:
+    kind: action
+    description: Resolve one immutable active SearchSession and execute its exact fixed-origin SearchProvider request
+    code:
+      - path: backend/src/main/java/com/visualizedexp/backend/search/ProviderWebSearchClient.java
+        symbol: findActive
+      - path: backend/src/main/java/com/visualizedexp/backend/search/WebSearchClient.java
+        symbol: SearchSession
+      - path: backend/src/main/java/com/visualizedexp/backend/search/SearchProviderRegistry.java
+        symbol: require
+    external_call:
+      system: Active Tavily or Brave Search API
+      timeout: 45s
+      failure_behavior: Throw a typed known failure with no retry and no provider fallback
+      failure_nodes: [D5, X4, T2]
+    tests:
+      - path: backend/src/test/java/com/visualizedexp/backend/search/ProviderWebSearchClientTest.java
+        symbol: dispatchesByActiveProviderAndAppliesCommonResultSafetyRules
+      - path: backend/src/test/java/com/visualizedexp/backend/search/ProviderWebSearchClientTest.java
+        symbol: resolvedSessionPinsTheExecutedProviderAndItsAuditIdAcrossActivationChanges
+
+  D5:
+    kind: decision
+    description: Accept only an exact-Key-safe successful parseable search response within the upstream byte bound
+    condition: provider response is 2xx, does not contain the exact active API Key before JSON parsing, and its result collection has the provider-specific array shape
+    code:
+      - path: backend/src/main/java/com/visualizedexp/backend/provider/ProviderVerifier.java
+        symbol: rejectCredentialEcho
+      - path: backend/src/main/java/com/visualizedexp/backend/search/TavilySearchProvider.java
+        symbol: search
+      - path: backend/src/main/java/com/visualizedexp/backend/search/BraveSearchProvider.java
+        symbol: search
+    tests:
+      - path: backend/src/test/java/com/visualizedexp/backend/search/TavilySearchProviderTest.java
+        symbol: rejectsMalformedAndCredentialFailureResponses
+      - path: backend/src/test/java/com/visualizedexp/backend/search/BraveSearchProviderTest.java
+        symbol: rejectsMalformedAndCredentialFailureResponses
+
+  A5:
+    kind: action
+    description: Deduplicate and retain at most five bounded title HTTPS URL snippet and date sources
+    code:
+      - path: backend/src/main/java/com/visualizedexp/backend/search/ProviderWebSearchClient.java
+        symbol: normalize
+      - path: backend/src/main/java/com/visualizedexp/backend/search/ProviderWebSearchClient.java
+        symbol: safeUrl
+    tests:
+      - path: backend/src/test/java/com/visualizedexp/backend/search/ProviderWebSearchClientTest.java
+        symbol: dispatchesByActiveProviderAndAppliesCommonResultSafetyRules
+
+  A13:
+    kind: action
+    description: Persist every observed search-status change and completed source set while the parent turn remains PENDING
+    code:
+      - path: backend/src/main/java/com/visualizedexp/backend/chat/SelectionChatModelClient.java
+        symbol: SearchProgressRecorder
+      - path: backend/src/main/java/com/visualizedexp/backend/chat/ChatService.java
+        symbol: submit
+      - path: backend/src/main/java/com/visualizedexp/backend/chat/ChatTurnRepository.java
+        symbol: recordSearchProgress
+      - path: backend/src/main/java/com/visualizedexp/backend/chat/OpenAiCompatibleChatClient.java
+        symbol: SearchAudit
+    tests:
+      - path: backend/src/test/java/com/visualizedexp/backend/chat/OpenAiCompatibleChatClientTest.java
+        symbol: reportsCompletedSearchProgressWhenSecondModelRequestHasKnownFailure
+      - path: backend/src/test/java/com/visualizedexp/backend/chat/OpenAiCompatibleChatClientTest.java
+        symbol: reportsCompletedSearchProgressWhenSecondModelRequestIsAmbiguous
+      - path: backend/src/test/java/com/visualizedexp/backend/BackendApiIntegrationTest.java
+        symbol: chatPersistsSearchProgressBeforeKnownAndAmbiguousSecondModelFailures
+
+  A6:
+    kind: action
+    description: Append sanitized assistant tool request and explicit untrusted-evidence protocol result
+    code:
+      - path: backend/src/main/java/com/visualizedexp/backend/chat/OpenAiCompatibleChatClient.java
+        symbol: openAiToolResultMessage
+      - path: backend/src/main/java/com/visualizedexp/backend/chat/OpenAiCompatibleChatClient.java
+        symbol: anthropicToolResultMessage
+    tests:
+      - path: backend/src/test/java/com/visualizedexp/backend/chat/OpenAiCompatibleChatClientTest.java
+        symbol: executesBoundedWebSearchToolThenReturnsFinalAnswerAndSources
+
+  A7:
+    kind: action
+    description: Request the next configured model completion with accumulated assistant and tool messages
+    code:
+      - path: backend/src/main/java/com/visualizedexp/backend/chat/OpenAiCompatibleChatClient.java
+        symbol: requestOpenAiCompletion
+      - path: backend/src/main/java/com/visualizedexp/backend/chat/OpenAiCompatibleChatClient.java
+        symbol: requestAnthropicCompletion
+    external_call:
+      system: Active OpenAI Chat Completions or Anthropic Messages provider
+      timeout: 45s
+      failure_behavior: Propagate a typed failure for ChatService to classify as known or ambiguous without automatic replay
+      failure_nodes: [T2, T3]
+
+  E2:
+    kind: entry
+    description: User chooses main-question search permission beside search-provider configuration and then submits visual creation with search explicitly off or on
+    trigger: ProviderSettingsPanel search permission followed by POST /api/lineage action create
+    code:
+      - path: components/provider-settings-panel.tsx
+        symbol: ProviderSettingsPanel
+      - path: components/model-settings-dialog.tsx
+        symbol: ModelSettingsDialog
+      - path: components/lineage-studio.tsx
+        symbol: createExplanation
+      - path: app/api/lineage/route.ts
+        symbol: POST
+    tests:
+      - path: tests/client-navigation.test.mjs
+        symbol: "main question search permission is colocated with providers defaults off and only travels with create"
+      - path: tests/api-lineage.test.mjs
+        symbol: "create with searchMode off never calls the internal search service"
+
+  D6:
+    kind: decision
+    description: Apply the main-question binary search option only to create
+    condition: create searchMode is off or on; missing defaults to off
+    code:
+      - path: app/api/lineage/route.ts
+        symbol: createSearchMode
+    tests:
+      - path: tests/api-lineage.test.mjs
+        symbol: "create with searchMode off never calls the internal search service"
+      - path: tests/api-lineage.test.mjs
+        symbol: "create with searchMode on searches once and gives the model only stable evidence IDs"
+
+  A8:
+    kind: action
+    description: Generate the visual document without contacting internal search or passing search evidence
+    code:
+      - path: app/api/lineage/route.ts
+        symbol: POST
+      - path: lib/model-port.ts
+        symbol: VisualModelContext
+    tests:
+      - path: tests/api-lineage.test.mjs
+        symbol: "create with searchMode off never calls the internal search service"
+
+  A9:
+    kind: action
+    description: Call the Java internal search endpoint exactly once with server bearer owner identity and bounded question
+    code:
+      - path: lib/server-web-search.ts
+        symbol: searchVisualEvidence
+      - path: backend/src/main/java/com/visualizedexp/backend/search/InternalSearchController.java
+        symbol: search
+      - path: backend/src/main/java/com/visualizedexp/backend/search/ProviderWebSearchClient.java
+        symbol: search
+    external_call:
+      system: Loopback Java backend and active Tavily or Brave Search API
+      timeout: Request-signal bounded Java fetch and 45s provider request
+      failure_behavior: Return a typed safe error before visual-model execution; no provider fallback or retry
+      failure_nodes: [D7, X6]
+    tests:
+      - path: tests/server-web-search.test.mjs
+        symbol: "server search sends only server identity, bounds the query, and projects safe source fields"
+      - path: backend/src/test/java/com/visualizedexp/backend/BackendApiIntegrationTest.java
+        symbol: internalSearchUsesOwnerScopedGatewayAndCapsTheResponse
+      - path: tests/api-lineage.test.mjs
+        symbol: "request abort reaches the in-flight internal search and prevents model execution"
+
+  D7:
+    kind: decision
+    description: Continue only when internal search returns at least one valid bounded normalized source
+    condition: server response is valid and source count is one through five
+    code:
+      - path: app/api/lineage/route.ts
+        symbol: POST
+      - path: lib/server-web-search.ts
+        symbol: searchVisualEvidence
+    tests:
+      - path: tests/api-lineage.test.mjs
+        symbol: "search configuration and provider failures stop before the model with typed errors"
+      - path: tests/server-web-search.test.mjs
+        symbol: "server search rejects malformed, non-HTTPS, and oversized responses"
+
+  A10:
+    kind: action
+    description: Project normalized sources to stable S1 through S5 evidence IDs and pass them as untrusted model context
+    code:
+      - path: lib/server-web-search.ts
+        symbol: parseSource
+      - path: lib/model-port.ts
+        symbol: VisualSearchEvidence
+      - path: lib/deepseek-model.ts
+        symbol: buildCreatePrompt
+      - path: lib/openai-model.ts
+        symbol: create
+    tests:
+      - path: tests/api-lineage.test.mjs
+        symbol: "create with searchMode on searches once and gives the model only stable evidence IDs"
+      - path: tests/deepseek-model.test.mjs
+        symbol: "DeepSeek create treats server search results as untrusted stable-ID evidence"
+
+  A11:
+    kind: action
+    description: Generate a visual draft whose root and children may cite only supplied stable evidence IDs
+    code:
+      - path: lib/deepseek-draft-contract.ts
+        symbol: parseCreateSceneDraft
+      - path: lib/deepseek-model.ts
+        symbol: create
+      - path: lib/openai-model.ts
+        symbol: create
+    external_call:
+      system: Configured visual model provider
+      timeout: Provider-specific configured timeout
+      failure_behavior: Use the existing single bounded content-repair path for validation failures; reject after repair exhaustion
+      failure_nodes: [D8, C1, X7]
+    tests:
+      - path: tests/deepseek-model.test.mjs
+        symbol: "DeepSeek create treats server search results as untrusted stable-ID evidence"
+
+  D8:
+    kind: decision
+    description: Validate that create-draft evidence references are recognized and that search-backed output uses at least one source
+    condition: every reference matches a supplied S1 through S5 ID and the assembled document contains evidence when search evidence was provided
+    code:
+      - path: lib/deepseek-draft-contract.ts
+        symbol: resolveEvidence
+      - path: lib/source-safety.ts
+        symbol: assertCreateHasNoFabricatedSources
+    tests:
+      - path: tests/deepseek-draft-contract.test.mjs
+        symbol: "create assembly maps only provided stable search references into canonical evidence"
+      - path: tests/deepseek-model.test.mjs
+        symbol: "DeepSeek create treats server search results as untrusted stable-ID evidence"
+
+  C1:
+    kind: compensation
+    description: Run the existing single bounded structured-content repair after invalid or unused evidence references
+    restores_or_resolves: Search-backed generation cannot be accepted with fabricated or unused evidence while permitting one deterministic correction attempt
+    failure_behavior: Reject the generated document after the one repair attempt fails validation
+    code:
+      - path: lib/deepseek-model.ts
+        symbol: requestStructuredDraft
+      - path: lib/openai-model.ts
+        symbol: requestStructured
+    tests:
+      - path: tests/deepseek-model.test.mjs
+        symbol: "DeepSeek create repairs content-invalid draft with one targeted second request"
+      - path: tests/deepseek-model.test.mjs
+        symbol: "DeepSeek stops after one failed content repair"
+
+  D9:
+    kind: decision
+    description: Accept repaired output only when the same evidence-reference and source-safety checks pass
+    condition: repaired create draft parses and assembled evidence is recognized nonempty and canonical
+    code:
+      - path: lib/deepseek-model.ts
+        symbol: requestStructuredDraft
+      - path: lib/source-safety.ts
+        symbol: assertCreateHasNoFabricatedSources
+    tests:
+      - path: tests/deepseek-model.test.mjs
+        symbol: "DeepSeek stops after one failed content repair"
+
+  A12:
+    kind: action
+    description: Assemble recognized evidence references from server-held canonical title URL snippet and date fields
+    code:
+      - path: lib/deepseek-draft-contract.ts
+        symbol: resolveEvidence
+      - path: lib/deepseek-draft-contract.ts
+        symbol: assembleVisualDocument
+    tests:
+      - path: tests/deepseek-draft-contract.test.mjs
+        symbol: "create assembly maps only provided stable search references into canonical evidence"
+
+  T1:
+    kind: transition
+    description: Complete the parent chat turn with final content search mode observed status provider ID call count and normalized sources
+    entity: ChatTurn
+    from: PENDING
+    to: COMPLETED
+    trigger: final_model_content
+    code:
+      - path: backend/src/main/java/com/visualizedexp/backend/chat/ChatService.java
+        symbol: submit
+      - path: backend/src/main/java/com/visualizedexp/backend/chat/ChatTurnRepository.java
+        symbol: complete
+    tests:
+      - path: backend/src/test/java/com/visualizedexp/backend/BackendApiIntegrationTest.java
+        symbol: chatPersistsExplicitSearchModeAndObservedExecution
+      - path: backend/src/test/java/com/visualizedexp/backend/BackendApiIntegrationTest.java
+        symbol: chatPersistsSearchProgressBeforeKnownAndAmbiguousSecondModelFailures
+
+  T2:
+    kind: transition
+    description: Mark the parent turn failed after force-policy search failure invalid tool output or a known provider failure
+    entity: ChatTurn
+    from: PENDING
+    to: FAILED
+    trigger: forced_search_unavailable_or_skipped_or_known_search_failure
+    code:
+      - path: backend/src/main/java/com/visualizedexp/backend/chat/ChatService.java
+        symbol: submit
+      - path: backend/src/main/java/com/visualizedexp/backend/chat/ChatTurnRepository.java
+        symbol: markFailed
+    tests:
+      - path: backend/src/test/java/com/visualizedexp/backend/chat/OpenAiCompatibleChatClientTest.java
+        symbol: rejectsForceModeWhenNoSearchProviderIsActive
+      - path: backend/src/test/java/com/visualizedexp/backend/chat/OpenAiCompatibleChatClientTest.java
+        symbol: forcesExactOpenAiToolChoiceAndFailsWhenModelSkipsIt
+      - path: backend/src/test/java/com/visualizedexp/backend/BackendApiIntegrationTest.java
+        symbol: searchFailureTransitionPreservesAutoOfferedButFailsForceSkip
+
+  T3:
+    kind: transition
+    description: Preserve ambiguous model transport without replaying the parent turn
+    entity: ChatTurn
+    from: PENDING
+    to: STATE_WRITTEN_BY_markUnknown
+    trigger: ambiguous_model_transport
+    code:
+      - path: backend/src/main/java/com/visualizedexp/backend/chat/ChatService.java
+        symbol: submit
+      - path: backend/src/main/java/com/visualizedexp/backend/chat/ChatTurnRepository.java
+        symbol: markUnknown
+    tests:
+      - path: backend/src/test/java/com/visualizedexp/backend/BackendApiIntegrationTest.java
+        symbol: chatTurnIsIdempotentAndDoesNotReplayAmbiguousOrFailedCalls
+      - path: backend/src/test/java/com/visualizedexp/backend/BackendApiIntegrationTest.java
+        symbol: chatPersistsSearchProgressBeforeKnownAndAmbiguousSecondModelFailures
+
+  X1:
+    kind: outcome
+    description: Forced selection-chat search is unavailable
+    result: Return search_provider_not_configured and persist FAILED without a model request
+
+  X2:
+    kind: outcome
+    description: Forced selection-chat search was skipped by the model
+    result: Return model_tool_required_but_not_called and persist FAILED instead of an unverified answer
+
+  X3:
+    kind: outcome
+    description: Invalid or over-budget model tool output is rejected
+    result: Return provider_response_invalid without executing an unvalidated search
+
+  X4:
+    kind: outcome
+    description: Selection-chat search provider failure is explicit
+    result: Parent chat turn fails with a typed error and no fallback provider
+
+  X5:
+    kind: outcome
+    description: Main visual creation completes without search
+    result: Return model-only document with search status disabled and zero calls
+
+  X6:
+    kind: outcome
+    description: Main-question search fails before model generation
+    result: Return a typed configuration provider empty-result or response error with no visual model call
+
+  X7:
+    kind: outcome
+    description: Search-backed generated content is rejected after bounded repair
+    result: No document with fabricated unrecognized or unused evidence is returned
+
+  X8:
+    kind: outcome
+    description: Search-backed visual creation succeeds
+    result: Return canonical evidence mapped from server-held sources plus used status and one search call
+
+  G1:
+    kind: safeguard
+    description: Fixed-origin egress without arbitrary page fetches
+    safeguard_type: authorization
+    guarantee: Both entry points reach only the active Tavily or Brave adapter and never follow redirects or fetch a result URL
+    protects: [A4, A9]
+    failure_behavior: Reject unsupported providers or unsafe destinations before network and never redirect
+    code:
+      - path: backend/src/main/java/com/visualizedexp/backend/provider/SafeHttpClient.java
+        symbol: SafeHttpClient
+      - path: backend/src/main/java/com/visualizedexp/backend/search/SearchProviderRegistry.java
+        symbol: require
+    tests:
+      - path: backend/src/test/java/com/visualizedexp/backend/provider/ProviderUrlPolicyTest.java
+        symbol: rejectsCustomLoopbackAndSearchPresetOverrides
+
+  G2:
+    kind: safeguard
+    description: Bounded search tool and internal-search execution
+    safeguard_type: rate-limit
+    guarantee: Selection chat accepts at most two strict calls while main create makes exactly one call; queries results fields timeouts and response bytes are bounded
+    protects: [D4, A4, A5, A9]
+    failure_behavior: Reject malformed or oversized work without retry or fallback
+    code:
+      - path: backend/src/main/java/com/visualizedexp/backend/chat/OpenAiCompatibleChatClient.java
+        symbol: MAX_TOOL_CALLS
+      - path: backend/src/main/java/com/visualizedexp/backend/search/InternalSearchController.java
+        symbol: search
+      - path: lib/server-web-search.ts
+        symbol: MAX_RESPONSE_BYTES
+    tests:
+      - path: backend/src/test/java/com/visualizedexp/backend/chat/OpenAiCompatibleChatClientTest.java
+        symbol: rejectsUnsupportedOrOverBudgetToolCallsBeforeSearchExecution
+      - path: backend/src/test/java/com/visualizedexp/backend/BackendApiIntegrationTest.java
+        symbol: internalSearchRejectsInvalidBoundsBeforeProviderIo
+      - path: tests/server-web-search.test.mjs
+        symbol: "server search rejects malformed, non-HTTPS, and oversized responses"
+
+  G3:
+    kind: safeguard
+    description: Server-only credential exact-echo rejection and untrusted-evidence boundary
+    safeguard_type: privacy
+    guarantee: Search keys remain in Java; successful Tavily and Brave responses are rejected before parsing when they contain the exact active Key; safe snippets can never redefine system or tool policy
+    protects: [D5, D7, A6, A10, T1]
+    failure_behavior: Return provider_response_rejected without using or exposing the upstream body; otherwise persist or expose only normalized public source metadata
+    code:
+      - path: backend/src/main/java/com/visualizedexp/backend/provider/ProviderVerifier.java
+        symbol: rejectCredentialEcho
+      - path: backend/src/main/java/com/visualizedexp/backend/search/TavilySearchProvider.java
+        symbol: search
+      - path: backend/src/main/java/com/visualizedexp/backend/search/BraveSearchProvider.java
+        symbol: search
+      - path: backend/src/main/java/com/visualizedexp/backend/chat/OpenAiCompatibleChatClient.java
+        symbol: toolPayload
+      - path: lib/deepseek-model.ts
+        symbol: createSystemPrompt
+      - path: backend/src/main/java/com/visualizedexp/backend/crypto/SecretCipher.java
+        symbol: decrypt
+    tests:
+      - path: backend/src/test/java/com/visualizedexp/backend/search/TavilySearchProviderTest.java
+        symbol: rejectsMalformedAndCredentialFailureResponses
+      - path: backend/src/test/java/com/visualizedexp/backend/search/BraveSearchProviderTest.java
+        symbol: rejectsMalformedAndCredentialFailureResponses
+      - path: backend/src/test/java/com/visualizedexp/backend/BackendApiIntegrationTest.java
+        symbol: providerApiNeverReturnsOrStoresPlaintextCredential
+      - path: tests/deepseek-model.test.mjs
+        symbol: "DeepSeek create treats server search results as untrusted stable-ID evidence"
+
+  G4:
+    kind: safeguard
+    description: Pinned exact search-provider snapshot and fail-closed dispatch
+    safeguard_type: authorization
+    guarantee: One resolved SearchSession pins the executed provider and audit configuration ID for the whole loop and never falls back
+    protects: [A4, A9]
+    failure_behavior: Reject duplicate invalid or missing adapters and return search_provider_unsupported
+    code:
+      - path: backend/src/main/java/com/visualizedexp/backend/search/ProviderWebSearchClient.java
+        symbol: findActive
+      - path: backend/src/main/java/com/visualizedexp/backend/search/WebSearchClient.java
+        symbol: SearchSession
+      - path: backend/src/main/java/com/visualizedexp/backend/search/SearchProviderRegistry.java
+        symbol: SearchProviderRegistry
+      - path: backend/src/main/java/com/visualizedexp/backend/search/SearchProviderRegistry.java
+        symbol: require
+    tests:
+      - path: backend/src/test/java/com/visualizedexp/backend/search/SearchProviderRegistryTest.java
+        symbol: rejectsDuplicateAndUnsupportedProvidersWithoutFallback
+      - path: backend/src/test/java/com/visualizedexp/backend/search/ProviderWebSearchClientTest.java
+        symbol: resolvedSessionPinsTheExecutedProviderAndItsAuditIdAcrossActivationChanges
+
+  G5:
+    kind: safeguard
+    description: Canonical evidence-reference assembly
+    safeguard_type: validation
+    guarantee: Main-question search accepts only supplied stable IDs maps server-held canonical fields and returns no search-backed document without at least one evidence reference
+    protects: [D8, A12]
+    failure_behavior: Run one bounded repair and reject generated content when the same checks still fail
+    code:
+      - path: lib/deepseek-draft-contract.ts
+        symbol: resolveEvidence
+      - path: lib/source-safety.ts
+        symbol: assertCreateHasNoFabricatedSources
+    tests:
+      - path: tests/deepseek-draft-contract.test.mjs
+        symbol: "create assembly maps only provided stable search references into canonical evidence"
+      - path: tests/deepseek-model.test.mjs
+        symbol: "DeepSeek create treats server search results as untrusted stable-ID evidence"
+
+  G6:
+    kind: safeguard
+    description: Explicit structured model-tool incompatibility classification
+    safeguard_type: validation
+    guarantee: Only structured upstream errors naming tools or tool_choice map to model_tools_unsupported and no request is retried without tools
+    protects: [A2, A3, A7]
+    failure_behavior: Preserve the original typed provider or companion rejection when explicit tool evidence is absent
+    code:
+      - path: backend/src/main/java/com/visualizedexp/backend/chat/OpenAiCompatibleChatClient.java
+        symbol: explicitlyRejectsTools
+    tests:
+      - path: backend/src/test/java/com/visualizedexp/backend/chat/OpenAiCompatibleChatClientTest.java
+        symbol: mapsToolRequest4xxWithoutRetryingARequestWithoutTools
+      - path: backend/src/test/java/com/visualizedexp/backend/chat/OpenAiCompatibleChatClientTest.java
+        symbol: preservesGenericCompanionRejectionWhenToolsWerePresent
+
+  G7:
+    kind: safeguard
+    description: Main-question search permission is colocated with provider availability and defaults off
+    safeguard_type: authorization
+    guarantee: A user without an active search profile cannot enable main-question search; activation of a provider never silently grants permission, and deleting the active profile turns permission off
+    protects: [E2, D6]
+    failure_behavior: Keep main-question creation on the model-only path and direct the user to configure and activate a search provider
+    code:
+      - path: components/provider-settings-panel.tsx
+        symbol: ProviderSettingsPanel
+      - path: components/lineage-studio.tsx
+        symbol: createExplanation
+    tests:
+      - path: tests/client-navigation.test.mjs
+        symbol: "main question search permission is colocated with providers defaults off and only travels with create"

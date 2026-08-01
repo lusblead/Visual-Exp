@@ -1,0 +1,798 @@
+version: 1
+feature_id: "visual-explanation.model-credentials"
+title: "Configure model and search providers"
+status: "implemented"
+
+characteristics:
+  cross_component: true
+  asynchronous: true
+  persisted_state: true
+  external_dependencies: true
+  retry_or_compensation: false
+  security_sensitive: true
+
+nodes:
+  E1:
+    kind: entry
+    description: User saves or replaces the legacy fixed DeepSeek credential
+    trigger: ModelSettingsDialog save
+    code:
+      - path: components/model-settings-dialog.tsx
+        symbol: ModelSettingsDialog
+      - path: app/api/model-settings/route.ts
+        symbol: PUT
+
+  D1:
+    kind: decision
+    description: Admit legacy credential work only through the configured authenticated loopback companion
+    condition: companion URL and per-start bearer exist and companion authorization succeeds
+    code:
+      - path: lib/companion-client.ts
+        symbol: companionTransport
+      - path: companion/VisualizedExp.Companion/Program.cs
+        symbol: RequireAuthorization
+    tests:
+      - path: tests/local-companion.test.mjs
+        symbol: "companion rejects wrong bearer and direct browser origin"
+
+  D2:
+    kind: decision
+    description: Admit one trusted JSON credential write and validate its bounded single-line DeepSeek Key before companion verification
+    condition: Origin and Sec-Fetch-Site are trusted, media type is application/json, streamed body is at most 2 KiB, and candidate length is 16 through 512 with no newline
+    code:
+      - path: app/api/model-settings/route.ts
+        symbol: assertSameOrigin
+      - path: app/api/model-settings/route.ts
+        symbol: readApiKey
+      - path: app/api/model-settings/route.ts
+        symbol: readBoundedUtf8Body
+      - path: companion/VisualizedExp.Companion/Program.cs
+        symbol: ReadCredentialRequestAsync
+    tests:
+      - path: tests/model-settings.test.mjs
+        symbol: "model settings reject malformed input before contacting the companion"
+      - path: tests/model-settings.test.mjs
+        symbol: "model settings reject cross-site, non-JSON, and streamed oversized writes"
+
+  A1:
+    kind: action
+    description: Verify the candidate against the fixed DeepSeek models endpoint
+    code:
+      - path: companion/VisualizedExp.Companion/DeepSeekProxy.cs
+        symbol: VerifyCredentialAsync
+    external_call:
+      system: DeepSeek public API
+      timeout: 20s
+      failure_behavior: Return a safe typed error and preserve the prior credential
+      failure_nodes: [D3, X1]
+
+  D3:
+    kind: decision
+    description: Accept only a legacy Key that lists both fixed semantic models
+    condition: DeepSeek models response contains deepseek-v4-pro and deepseek-v4-flash
+    code:
+      - path: companion/VisualizedExp.Companion/DeepSeekProxy.cs
+        symbol: VerifyCredentialAsync
+    tests:
+      - path: tests/local-companion.test.mjs
+        symbol: "credential verification requires both product models"
+      - path: tests/local-companion.test.mjs
+        symbol: "invalid replacement preserves the previously verified credential"
+
+  T1:
+    kind: transition
+    description: Persist the first verified legacy DeepSeek credential
+    entity: LegacyDeepSeekCredential
+    from: UNCONFIGURED
+    to: CONFIGURED
+    trigger: verified_initial_save
+    code:
+      - path: companion/VisualizedExp.Companion/WindowsCredentialStore.cs
+        symbol: Write
+    tests:
+      - path: tests/local-companion.test.mjs
+        symbol: "companion persists one verified credential without exposing it"
+
+  T2:
+    kind: transition
+    description: Replace the legacy credential only after candidate verification
+    entity: LegacyDeepSeekCredential
+    from: CONFIGURED
+    to: CONFIGURED
+    trigger: verified_replacement
+    code:
+      - path: companion/VisualizedExp.Companion/WindowsCredentialStore.cs
+        symbol: Write
+    tests:
+      - path: tests/local-companion.test.mjs
+        symbol: "invalid replacement preserves the previously verified credential"
+
+  E2:
+    kind: entry
+    description: User explicitly deletes the legacy DeepSeek credential
+    trigger: ModelSettingsDialog delete
+    code:
+      - path: components/model-settings-dialog.tsx
+        symbol: ModelSettingsDialog
+      - path: app/api/model-settings/route.ts
+        symbol: DELETE
+
+  T3:
+    kind: transition
+    description: Idempotently remove the legacy Windows credential
+    entity: LegacyDeepSeekCredential
+    from: CONFIGURED_OR_ABSENT
+    to: UNCONFIGURED
+    trigger: explicit_delete
+    code:
+      - path: companion/VisualizedExp.Companion/WindowsCredentialStore.cs
+        symbol: Delete
+    tests:
+      - path: tests/local-companion.test.mjs
+        symbol: "companion delete is idempotent and removes persistent status"
+
+  E3:
+    kind: entry
+    description: Existing semantic-lineage model requests create expand define or dive
+    trigger: VisualModelPort semantic action
+    code:
+      - path: lib/model-port.ts
+        symbol: resolveVisualModel
+      - path: lib/deepseek-model.ts
+        symbol: DeepSeekVisualModel
+
+  A2:
+    kind: action
+    description: Companion reads the legacy Key and proxies only fixed Pro or Flash semantic requests
+    code:
+      - path: companion/VisualizedExp.Companion/DeepSeekProxy.cs
+        symbol: ForwardChatAsync
+      - path: lib/deepseek-model.ts
+        symbol: requestProviderCompletion
+    external_call:
+      system: DeepSeek public API
+      timeout: 90s
+      failure_behavior: Return safe provider mapping without serializing or logging the credential
+      failure_nodes: [X4]
+    tests:
+      - path: tests/local-companion.test.mjs
+        symbol: "companion forwards only the pro and flash model allowlist"
+
+  E4:
+    kind: entry
+    description: Local launcher starts the companion Java backend and web worker
+    trigger: scripts/start-local.mjs
+    code:
+      - path: scripts/start-local.mjs
+        symbol: startWeb
+
+  D9:
+    kind: decision
+    description: Reuse the dedicated signing secret or create it on the first authenticated launcher request
+    condition: the fixed explanation-context Windows credential target exists with a non-empty value
+    code:
+      - path: companion/VisualizedExp.Companion/Program.cs
+        symbol: ExplanationContextSecret
+      - path: companion/VisualizedExp.Companion/WindowsCredentialStore.cs
+        symbol: Read
+    tests:
+      - path: tests/local-companion.test.mjs
+        symbol: "context signing secret is launcher-only and stable"
+
+  A3:
+    kind: action
+    description: Return the stable explanation-context signing secret over the authenticated launcher-only channel
+    code:
+      - path: scripts/read-explanation-context-secret.mjs
+        symbol: readExplanationContextSecret
+      - path: companion/VisualizedExp.Companion/Program.cs
+        symbol: ExplanationContextSecret
+    tests:
+      - path: tests/local-companion.test.mjs
+        symbol: "context signing secret is launcher-only and stable"
+
+  D4:
+    kind: decision
+    description: Fail startup unless the authenticated signing-secret response is valid and at least 32 bytes
+    condition: companion response is 2xx JSON with a sufficiently long secret
+    code:
+      - path: scripts/read-explanation-context-secret.mjs
+        symbol: readExplanationContextSecret
+    tests:
+      - path: tests/local-companion.test.mjs
+        symbol: "launcher rejects invalid explanation-context secret responses"
+      - path: tests/local-companion.test.mjs
+        symbol: "local launcher bridges the companion into the Vinext worker"
+
+  T8:
+    kind: transition
+    description: Persist the first stable explanation-context signing secret in Windows Credential Manager
+    entity: ExplanationContextSigningSecret
+    from: ABSENT
+    to: CONFIGURED
+    trigger: first_authenticated_launcher_read
+    code:
+      - path: companion/VisualizedExp.Companion/Program.cs
+        symbol: ExplanationContextSecret
+      - path: companion/VisualizedExp.Companion/WindowsCredentialStore.cs
+        symbol: Write
+    tests:
+      - path: tests/local-companion.test.mjs
+        symbol: "context signing secret is launcher-only and stable"
+
+  A4:
+    kind: action
+    description: Derive the Java credential master key and start loopback Java with a separate internal bearer
+    code:
+      - path: scripts/start-local.mjs
+        symbol: deriveBackendMasterKey
+      - path: scripts/start-local.mjs
+        symbol: startBackend
+
+  E5:
+    kind: entry
+    description: User creates or updates a selection-chat model or search profile from Kimi GLM other built-in presets or the editable custom template
+    trigger: ProviderSettingsPanel form submit
+    code:
+      - path: components/provider-settings-panel.tsx
+        symbol: ProviderSettingsPanel
+      - path: lib/provider-settings.ts
+        symbol: createProvider
+      - path: lib/provider-settings.ts
+        symbol: updateProvider
+
+  A5:
+    kind: action
+    description: Send the write-only candidate through the same-origin stream-bounded proxy to Java
+    code:
+      - path: lib/provider-settings.ts
+        symbol: requestProviderJson
+      - path: app/api/backend/[...path]/route.ts
+        symbol: forward
+      - path: backend/src/main/java/com/visualizedexp/backend/provider/ProviderController.java
+        symbol: create
+    tests:
+      - path: tests/provider-settings.test.mjs
+        symbol: "provider client uses the same-origin Java proxy without echoing keys"
+
+  D5:
+    kind: decision
+    description: Validate provider kind including aligned Kimi and GLM identifiers editable model protocol address mode authentication model ID display name and Key
+    condition: the frontend preset identifier exists in Java ProviderType and belongs to kind; model address is safe HTTPS with implemented API format and bounded auth header or search metadata matches its fixed server contract
+    code:
+      - path: lib/provider-settings.ts
+        symbol: buildProviderWriteBody
+      - path: backend/src/main/java/com/visualizedexp/backend/provider/ProviderType.java
+        symbol: ProviderType
+      - path: backend/src/main/java/com/visualizedexp/backend/provider/ProviderService.java
+        symbol: create
+      - path: backend/src/main/java/com/visualizedexp/backend/provider/ProviderUrlPolicy.java
+        symbol: resolve
+    tests:
+      - path: tests/provider-settings.test.mjs
+        symbol: "provider presets expose Kimi and GLM while search stays Tavily and Brave only"
+      - path: tests/provider-settings.test.mjs
+        symbol: "model write body preserves an edited HTTPS request address and protocol"
+      - path: tests/provider-settings.test.mjs
+        symbol: "model request address and custom auth header fail closed on unsafe input"
+      - path: backend/src/test/java/com/visualizedexp/backend/provider/ProviderUrlPolicyTest.java
+        symbol: derivesExactProtocolEndpointsAndAllowsModelPresetOverrides
+
+  A6:
+    kind: action
+    description: Verify model connectivity with one minimal completion using the configured protocol endpoint authentication and model ID
+    code:
+      - path: backend/src/main/java/com/visualizedexp/backend/provider/ProviderVerifier.java
+        symbol: verifyModel
+    external_call:
+      system: Candidate OpenAI Chat Completions or Anthropic Messages provider
+      timeout: 45s
+      failure_behavior: Return a typed safe error and perform no candidate database write
+      failure_nodes: [D11, D6, X8, X15]
+    tests:
+      - path: backend/src/test/java/com/visualizedexp/backend/provider/ProviderVerifierTest.java
+        symbol: verifiesOpenAiAgainstTheExactConfiguredEndpointAndFixedApiKeyHeader
+      - path: backend/src/test/java/com/visualizedexp/backend/provider/ProviderVerifierTest.java
+        symbol: verifiesAnthropicMessagesAtTheDerivedEndpointWithNativeHeaders
+
+  A8:
+    kind: action
+    description: Resolve the exact registered SearchProvider and verify credentials with one minimal provider request
+    code:
+      - path: backend/src/main/java/com/visualizedexp/backend/provider/ProviderVerifier.java
+        symbol: verifySearch
+      - path: backend/src/main/java/com/visualizedexp/backend/search/SearchProviderRegistry.java
+        symbol: require
+      - path: backend/src/main/java/com/visualizedexp/backend/search/TavilySearchProvider.java
+        symbol: search
+      - path: backend/src/main/java/com/visualizedexp/backend/search/BraveSearchProvider.java
+        symbol: search
+    external_call:
+      system: Candidate Tavily or Brave Search API
+      timeout: 45s
+      failure_behavior: Return a typed safe error and perform no candidate database write or provider fallback
+      failure_nodes: [D11, D6, X8, X15]
+    tests:
+      - path: backend/src/test/java/com/visualizedexp/backend/provider/ProviderVerifierTest.java
+        symbol: verifiesSearchCredentialsThroughTheRegisteredProviderAdapter
+      - path: backend/src/test/java/com/visualizedexp/backend/search/TavilySearchProviderTest.java
+        symbol: usesFixedPostContractAndMapsRawCandidates
+      - path: backend/src/test/java/com/visualizedexp/backend/search/BraveSearchProviderTest.java
+        symbol: usesFixedGetContractAndMapsRawCandidates
+
+  D6:
+    kind: decision
+    description: Accept only the protocol-specific parseable successful provider verification response
+    condition: model returns the expected content or choices shape or the selected search adapter returns a result array within the HTTP response bound
+    code:
+      - path: backend/src/main/java/com/visualizedexp/backend/provider/ProviderVerifier.java
+        symbol: requireModelVerified
+      - path: backend/src/main/java/com/visualizedexp/backend/search/TavilySearchProvider.java
+        symbol: search
+      - path: backend/src/main/java/com/visualizedexp/backend/search/BraveSearchProvider.java
+        symbol: search
+    tests:
+      - path: backend/src/test/java/com/visualizedexp/backend/provider/ProviderVerifierTest.java
+        symbol: acceptsOnlyFormatSpecificSuccessfulVerificationResponses
+      - path: backend/src/test/java/com/visualizedexp/backend/search/TavilySearchProviderTest.java
+        symbol: rejectsMalformedAndCredentialFailureResponses
+      - path: backend/src/test/java/com/visualizedexp/backend/search/BraveSearchProviderTest.java
+        symbol: rejectsMalformedAndCredentialFailureResponses
+
+  D11:
+    kind: decision
+    description: Reject a model or search verification response that contains the exact candidate credential
+    condition: successful model, Tavily, or Brave response body does not contain the candidate API Key before JSON parsing
+    code:
+      - path: backend/src/main/java/com/visualizedexp/backend/provider/ProviderVerifier.java
+        symbol: rejectCredentialEcho
+      - path: backend/src/main/java/com/visualizedexp/backend/search/TavilySearchProvider.java
+        symbol: search
+      - path: backend/src/main/java/com/visualizedexp/backend/search/BraveSearchProvider.java
+        symbol: search
+    tests:
+      - path: backend/src/test/java/com/visualizedexp/backend/provider/ProviderVerifierTest.java
+        symbol: rejectsVerificationResponsesThatEchoTheCandidateCredential
+      - path: backend/src/test/java/com/visualizedexp/backend/search/TavilySearchProviderTest.java
+        symbol: rejectsMalformedAndCredentialFailureResponses
+      - path: backend/src/test/java/com/visualizedexp/backend/search/BraveSearchProviderTest.java
+        symbol: rejectsMalformedAndCredentialFailureResponses
+
+  T4:
+    kind: transition
+    description: Encrypt and insert a newly verified inactive profile when activation is not requested
+    entity: JavaProviderProfile
+    from: ABSENT
+    to: INACTIVE
+    trigger: verified_create_without_activation
+    code:
+      - path: backend/src/main/java/com/visualizedexp/backend/provider/ProviderService.java
+        symbol: create
+      - path: backend/src/main/java/com/visualizedexp/backend/provider/ProviderConfigRepository.java
+        symbol: insertAndMaybeActivate
+      - path: backend/src/main/java/com/visualizedexp/backend/crypto/SecretCipher.java
+        symbol: encrypt
+    tests:
+      - path: backend/src/test/java/com/visualizedexp/backend/BackendApiIntegrationTest.java
+        symbol: providerApiNeverReturnsOrStoresPlaintextCredential
+
+  T5:
+    kind: transition
+    description: Re-verify encrypt and replace mutable profile fields while preserving active state
+    entity: JavaProviderProfile
+    from: CONFIGURED
+    to: CONFIGURED
+    trigger: verified_update
+    code:
+      - path: backend/src/main/java/com/visualizedexp/backend/provider/ProviderService.java
+        symbol: update
+      - path: backend/src/main/java/com/visualizedexp/backend/provider/ProviderConfigRepository.java
+        symbol: updateAndMaybeActivate
+    tests:
+      - path: backend/src/test/java/com/visualizedexp/backend/BackendApiIntegrationTest.java
+        symbol: providerApiNeverReturnsOrStoresPlaintextCredential
+
+  D7:
+    kind: decision
+    description: Activate the profile only when requested or by the create default
+    condition: activate is true or omitted on create or explicitly true on update
+    code:
+      - path: backend/src/main/java/com/visualizedexp/backend/provider/ProviderService.java
+        symbol: create
+      - path: backend/src/main/java/com/visualizedexp/backend/provider/ProviderService.java
+        symbol: update
+    tests:
+      - path: backend/src/test/java/com/visualizedexp/backend/BackendApiIntegrationTest.java
+        symbol: providerApiNeverReturnsOrStoresPlaintextCredential
+
+  T6:
+    kind: transition
+    description: Atomically persist a verified create or update when needed and make the selected profile the sole active profile for its owner and kind
+    entity: JavaProviderProfile
+    from: ABSENT_OR_INACTIVE_OR_OTHER_ACTIVE
+    to: SELECTED_ACTIVE
+    trigger: verified_write_with_activation_or_explicit_activation
+    code:
+      - path: backend/src/main/java/com/visualizedexp/backend/provider/ProviderService.java
+        symbol: activate
+      - path: backend/src/main/java/com/visualizedexp/backend/provider/ProviderConfigRepository.java
+        symbol: activate
+      - path: backend/src/main/java/com/visualizedexp/backend/provider/ProviderConfigRepository.java
+        symbol: insertAndMaybeActivate
+      - path: backend/src/main/java/com/visualizedexp/backend/provider/ProviderConfigRepository.java
+        symbol: updateAndMaybeActivate
+    tests:
+      - path: tests/provider-settings.test.mjs
+        symbol: "update, activate, and delete address one encoded provider profile"
+
+  E6:
+    kind: entry
+    description: User explicitly activates a saved Java provider profile
+    trigger: ProviderSettingsPanel activate button
+    code:
+      - path: components/provider-settings-panel.tsx
+        symbol: handleActivate
+      - path: lib/provider-settings.ts
+        symbol: activateProvider
+
+  E7:
+    kind: entry
+    description: User explicitly confirms deletion of a saved Java provider profile
+    trigger: ProviderSettingsPanel second delete confirmation
+    code:
+      - path: components/provider-settings-panel.tsx
+        symbol: handleDelete
+      - path: lib/provider-settings.ts
+        symbol: deleteProvider
+
+  T7:
+    kind: transition
+    description: Delete the owner-scoped encrypted provider profile without activating a fallback
+    entity: JavaProviderProfile
+    from: INACTIVE_OR_ACTIVE
+    to: DELETED
+    trigger: explicit_delete
+    code:
+      - path: backend/src/main/java/com/visualizedexp/backend/provider/ProviderService.java
+        symbol: delete
+      - path: backend/src/main/java/com/visualizedexp/backend/provider/ProviderConfigRepository.java
+        symbol: delete
+    tests:
+      - path: tests/provider-settings.test.mjs
+        symbol: "update, activate, and delete address one encoded provider profile"
+
+  E8:
+    kind: entry
+    description: Selection chat requires its active model or optional search profile
+    trigger: OpenAiCompatibleChatClient complete or ProviderWebSearchClient search
+    code:
+      - path: backend/src/main/java/com/visualizedexp/backend/chat/OpenAiCompatibleChatClient.java
+        symbol: complete
+      - path: backend/src/main/java/com/visualizedexp/backend/search/ProviderWebSearchClient.java
+        symbol: search
+
+  D8:
+    kind: decision
+    description: Prefer an active owner-scoped Java model override when selection chat resolves its model
+    condition: one active owner-scoped MODEL row exists
+    code:
+      - path: backend/src/main/java/com/visualizedexp/backend/chat/SelectionChatModelResolver.java
+        symbol: require
+    tests:
+      - path: backend/src/test/java/com/visualizedexp/backend/chat/SelectionChatModelResolverTest.java
+        symbol: ownerScopedActiveProviderOverridesTheDeviceCompanion
+      - path: backend/src/test/java/com/visualizedexp/backend/chat/SelectionChatModelResolverTest.java
+        symbol: anotherOwnerWithoutAnOverrideFallsBackToTheDeviceCompanion
+
+  D10:
+    kind: decision
+    description: Use the authenticated loopback companion only when the launcher configured its fixed transport and the device DeepSeek credential exists
+    condition: local companion integration is enabled and its fixed status response reports configured true
+    code:
+      - path: backend/src/main/java/com/visualizedexp/backend/chat/SelectionChatModelResolver.java
+        symbol: require
+      - path: backend/src/main/java/com/visualizedexp/backend/chat/LocalDeepSeekCompanionClient.java
+        symbol: isCredentialConfigured
+    tests:
+      - path: backend/src/test/java/com/visualizedexp/backend/chat/SelectionChatModelResolverTest.java
+        symbol: anotherOwnerWithoutAnOverrideFallsBackToTheDeviceCompanion
+      - path: backend/src/test/java/com/visualizedexp/backend/chat/SelectionChatModelResolverTest.java
+        symbol: rejectsChatWhenNeitherAnOverrideNorACompanionCredentialExists
+      - path: backend/src/test/java/com/visualizedexp/backend/chat/LocalDeepSeekCompanionClientTest.java
+        symbol: usesFixedStatusAndChatPathsWithTheLauncherBearer
+
+  A7:
+    kind: action
+    description: Re-check runtime URL safety decrypt the Key in Java and call the configured model protocol or exact registered search adapter through connection-time safe DNS
+    code:
+      - path: backend/src/main/java/com/visualizedexp/backend/provider/ProviderService.java
+        symbol: requireActive
+      - path: backend/src/main/java/com/visualizedexp/backend/chat/OpenAiCompatibleChatClient.java
+        symbol: sendModelRequest
+      - path: backend/src/main/java/com/visualizedexp/backend/search/ProviderWebSearchClient.java
+        symbol: search
+      - path: backend/src/main/java/com/visualizedexp/backend/search/SearchProviderRegistry.java
+        symbol: require
+      - path: backend/src/main/java/com/visualizedexp/backend/provider/ProviderUrlPolicy.java
+        symbol: assertRuntimeSafe
+      - path: backend/src/main/java/com/visualizedexp/backend/provider/SafeHttpClient.java
+        symbol: SafeDnsResolver
+      - path: backend/src/main/java/com/visualizedexp/backend/crypto/SecretCipher.java
+        symbol: decrypt
+
+  A9:
+    kind: action
+    description: Send the fixed DeepSeek Pro chat request through the authenticated IPv4 loopback companion without copying its Windows credential into Java
+    code:
+      - path: backend/src/main/java/com/visualizedexp/backend/chat/OpenAiCompatibleChatClient.java
+        symbol: sendModelRequest
+      - path: backend/src/main/java/com/visualizedexp/backend/chat/LocalDeepSeekCompanionClient.java
+        symbol: sendChat
+      - path: scripts/start-local.mjs
+        symbol: startBackend
+    external_call:
+      system: Authenticated local companion and its fixed DeepSeek proxy
+      timeout: 45s Java companion request and companion-owned upstream timeout
+      failure_behavior: Return a typed provider or companion error; do not fall back to another model and never expose the credential
+      failure_nodes: [X12, X13]
+    tests:
+      - path: backend/src/test/java/com/visualizedexp/backend/chat/LocalDeepSeekCompanionClientTest.java
+        symbol: usesFixedStatusAndChatPathsWithTheLauncherBearer
+      - path: backend/src/test/java/com/visualizedexp/backend/chat/OpenAiCompatibleChatClientTest.java
+        symbol: usesConfiguredLocalCompanionWhenOwnerHasNoModelOverride
+
+  X1:
+    kind: outcome
+    description: Legacy candidate save is rejected
+    result: Safe error and prior Windows credential remains unchanged
+
+  X2:
+    kind: outcome
+    description: Legacy DeepSeek credential is configured
+    result: Browser receives fixed provider model and source metadata without the Key
+
+  X3:
+    kind: outcome
+    description: Legacy lane is unconfigured
+    result: Subsequent companion semantic requests require a credential
+
+  X4:
+    kind: outcome
+    description: Semantic provider response returns for existing contract validation
+    result: DeepSeek Key remains inside companion transport
+
+  X5:
+    kind: outcome
+    description: Local startup fails closed
+    result: No unstable signing or Java credential key is substituted
+
+  X6:
+    kind: outcome
+    description: Local companion Java backend and web worker start with separate bindings
+    result: Stable context signing and Java credential decryption survive restart
+
+  X7:
+    kind: outcome
+    description: Invalid Java provider candidate is rejected locally
+    result: No verification call or durable write
+
+  X8:
+    kind: outcome
+    description: Java candidate verification fails
+    result: Safe typed error and existing stored provider remains unchanged
+
+  X9:
+    kind: outcome
+    description: Verified provider is saved but inactive
+    result: Summary is returned without Key or ciphertext
+
+  X10:
+    kind: outcome
+    description: Verified provider is active
+    result: It is the sole active profile for its owner and kind
+
+  X11:
+    kind: outcome
+    description: Java provider profile is deleted
+    result: No other saved profile is activated implicitly
+
+  X12:
+    kind: outcome
+    description: Required Java provider kind is unconfigured
+    result: Model calls return provider_not_configured and search tool is omitted
+
+  X13:
+    kind: outcome
+    description: Java provider operation returns safe model or normalized search data
+    result: No Key or encrypted credential is serialized to the browser
+
+  X14:
+    kind: outcome
+    description: Verified Java provider update is stored without changing activation
+    result: Existing active state is preserved and safe metadata is returned
+
+  X15:
+    kind: outcome
+    description: Unsafe provider verification response is rejected
+    result: Return a fixed typed error without storing the candidate profile or exposing the response body
+    tests:
+      - path: backend/src/test/java/com/visualizedexp/backend/provider/ProviderVerifierTest.java
+        symbol: rejectsVerificationResponsesThatEchoTheCandidateCredential
+      - path: backend/src/test/java/com/visualizedexp/backend/search/TavilySearchProviderTest.java
+        symbol: rejectsMalformedAndCredentialFailureResponses
+      - path: backend/src/test/java/com/visualizedexp/backend/search/BraveSearchProviderTest.java
+        symbol: rejectsMalformedAndCredentialFailureResponses
+
+  G1:
+    kind: safeguard
+    description: Deterministic selection-chat model precedence without credential duplication
+    safeguard_type: integrity
+    guarantee: Selection chat uses the owner's active Java model override first and otherwise reuses the device DeepSeek companion without copying its Windows credential into Java
+    protects: [A2, A7, A9]
+    failure_behavior: Return provider_not_configured when neither lane is available; never silently choose another configured owner or model
+    code:
+      - path: lib/model-port.ts
+        symbol: resolveVisualModel
+      - path: backend/src/main/java/com/visualizedexp/backend/chat/SelectionChatModelResolver.java
+        symbol: require
+    tests:
+      - path: tests/local-companion.test.mjs
+        symbol: "companion forwards only the pro and flash model allowlist"
+      - path: backend/src/test/java/com/visualizedexp/backend/chat/SelectionChatModelResolverTest.java
+        symbol: ownerScopedActiveProviderOverridesTheDeviceCompanion
+      - path: backend/src/test/java/com/visualizedexp/backend/chat/SelectionChatModelResolverTest.java
+        symbol: anotherOwnerWithoutAnOverrideFallsBackToTheDeviceCompanion
+
+  G2:
+    kind: safeguard
+    description: Verify before durable replacement
+    safeguard_type: validation
+    guarantee: Failed legacy or Java candidate verification cannot overwrite a previously stored credential
+    protects: [A1, A6, A8, T2, T5]
+    failure_behavior: Return safe typed failure before credential write
+    code:
+      - path: companion/VisualizedExp.Companion/DeepSeekProxy.cs
+        symbol: VerifyCredentialAsync
+      - path: backend/src/main/java/com/visualizedexp/backend/provider/ProviderService.java
+        symbol: update
+      - path: backend/src/main/java/com/visualizedexp/backend/provider/ProviderVerifier.java
+        symbol: verifySearch
+    tests:
+      - path: tests/local-companion.test.mjs
+        symbol: "invalid replacement preserves the previously verified credential"
+      - path: backend/src/test/java/com/visualizedexp/backend/provider/ProviderVerifierTest.java
+        symbol: verifiesSearchCredentialsThroughTheRegisteredProviderAdapter
+
+  G3:
+    kind: safeguard
+    description: Secret-at-rest protection
+    safeguard_type: privacy
+    guarantee: Legacy secrets stay in Windows Credential Manager and Java provider keys are authenticated AES-GCM ciphertext bound to owner config and provider
+    protects: [T1, T2, T4, T5]
+    failure_behavior: Abort on vault error invalid master key or failed authenticated decryption
+    code:
+      - path: companion/VisualizedExp.Companion/WindowsCredentialStore.cs
+        symbol: WindowsCredentialStore
+      - path: backend/src/main/java/com/visualizedexp/backend/crypto/SecretCipher.java
+        symbol: SecretCipher
+      - path: backend/src/main/resources/db/migration/V2__provider_protocol_configuration.sql
+        symbol: api_format
+    tests:
+      - path: backend/src/test/java/com/visualizedexp/backend/crypto/SecretCipherTest.java
+        symbol: authenticatesCiphertextWithOwnerScopedAssociatedData
+      - path: backend/src/test/java/com/visualizedexp/backend/provider/ProviderMigrationCompatibilityTest.java
+        symbol: upgradesPopulatedV1RowsWithoutChangingCiphertextOrLegacyMeaning
+
+  G4:
+    kind: safeguard
+    description: Same-origin streamed-body owner and internal-bearer boundary
+    safeguard_type: authorization
+    guarantee: Credential settings accept only trusted application/json writes streamed to at most 2 KiB; non-GET Java BFF requests reject untrusted origins and stop streaming at 4 MiB; admitted Java requests receive only server-added device owner identity and launcher internal bearer
+    protects: [D2, A5, A7]
+    failure_behavior: Reject with a typed 403, 415, or 413 before companion, Java, or provider access; reject invalid backend authentication before provider access
+    code:
+      - path: app/api/model-settings/route.ts
+        symbol: assertSameOrigin
+      - path: app/api/model-settings/route.ts
+        symbol: readApiKey
+      - path: app/api/model-settings/route.ts
+        symbol: readBoundedUtf8Body
+      - path: app/api/backend/[...path]/route.ts
+        symbol: forward
+      - path: app/api/backend/[...path]/route.ts
+        symbol: assertSameOrigin
+      - path: app/api/backend/[...path]/route.ts
+        symbol: boundedRequestBody
+      - path: backend/src/main/java/com/visualizedexp/backend/auth/InternalTokenFilter.java
+        symbol: InternalTokenFilter
+    tests:
+      - path: tests/model-settings.test.mjs
+        symbol: "model settings reject cross-site, non-JSON, and streamed oversized writes"
+      - path: tests/backend-proxy.test.mjs
+        symbol: "backend proxy rejects cross-origin writes before contacting Java"
+      - path: tests/backend-proxy.test.mjs
+        symbol: "backend proxy rejects cross-site metadata and chunked oversized bodies before Java"
+
+  G5:
+    kind: safeguard
+    description: Editable model destinations fixed search origins and fail-closed search-adapter dispatch
+    safeguard_type: authorization
+    guarantee: Model templates may change only to safe HTTPS destinations while search profiles reach exactly one fixed-origin adapter; duplicate missing or wrong-kind adapters never fall back
+    protects: [D5, A6, A8, A7]
+    failure_behavior: Reject unsafe model destinations at configuration; reject invalid adapter registration at startup or return search_provider_unsupported; bind actual connection DNS resolution to the same address policy and never redirect or retry automatically
+    code:
+      - path: backend/src/main/java/com/visualizedexp/backend/provider/ProviderUrlPolicy.java
+        symbol: ProviderUrlPolicy
+      - path: backend/src/main/java/com/visualizedexp/backend/provider/SafeHttpClient.java
+        symbol: SafeHttpClient
+      - path: backend/src/main/java/com/visualizedexp/backend/search/SearchProviderRegistry.java
+        symbol: SearchProviderRegistry
+    tests:
+      - path: backend/src/test/java/com/visualizedexp/backend/provider/ProviderUrlPolicyTest.java
+        symbol: derivesExactProtocolEndpointsAndAllowsModelPresetOverrides
+      - path: backend/src/test/java/com/visualizedexp/backend/provider/ProviderUrlPolicyTest.java
+        symbol: appliesTheSameAddressPolicyDuringConnectionResolution
+      - path: backend/src/test/java/com/visualizedexp/backend/provider/ProviderUrlPolicyTest.java
+        symbol: allowsClashFakeIpOnlyForExactBuiltInOfficialHosts
+      - path: backend/src/test/java/com/visualizedexp/backend/search/SearchProviderRegistryTest.java
+        symbol: rejectsDuplicateAndUnsupportedProvidersWithoutFallback
+
+  G6:
+    kind: safeguard
+    description: Credential non-disclosure
+    safeguard_type: privacy
+    guarantee: Neither legacy nor Java APIs return plaintext or encrypted Key fields and the browser rejects secret-shaped provider responses
+    protects: [X2, X4, X9, X10, X13]
+    failure_behavior: Return configured metadata or safe error only
+    code:
+      - path: app/api/model-settings/route.ts
+        symbol: credentialStatusResponse
+      - path: backend/src/main/java/com/visualizedexp/backend/provider/ProviderService.java
+        symbol: summary
+      - path: lib/provider-settings.ts
+        symbol: assertNoSecretFields
+    tests:
+      - path: backend/src/test/java/com/visualizedexp/backend/BackendApiIntegrationTest.java
+        symbol: providerApiNeverReturnsOrStoresPlaintextCredential
+      - path: tests/provider-settings.test.mjs
+        symbol: "status parser rejects any secret-shaped response field"
+
+  G7:
+    kind: safeguard
+    description: Frontend model presets and Java provider types remain aligned
+    safeguard_type: validation
+    guarantee: Every selectable model preset including Kimi and GLM has the same stable identifier protocol default and base URL in the browser template and Java ProviderType parser
+    protects: [D5, A6]
+    failure_behavior: Reject unrecognized identifiers before credential verification or persistence; never show a preset that Java cannot accept
+    code:
+      - path: lib/provider-settings.ts
+        symbol: PROVIDER_PRESETS
+      - path: backend/src/main/java/com/visualizedexp/backend/provider/ProviderType.java
+        symbol: ProviderType
+    tests:
+      - path: tests/provider-settings.test.mjs
+        symbol: "provider presets expose Kimi and GLM while search stays Tavily and Brave only"
+      - path: backend/src/test/java/com/visualizedexp/backend/BackendApiIntegrationTest.java
+        symbol: providerApiAcceptsKimiAndGlmPresetIdentifiers
+
+  G8:
+    kind: safeguard
+    description: Exact credential-echo rejection during model and search provider verification
+    safeguard_type: privacy
+    guarantee: A candidate model, Tavily, or Brave provider cannot reflect its submitted Key into a response that is parsed, stored, activated, or returned
+    protects: [D11, T4, T5, T6]
+    failure_behavior: Reject with provider_response_rejected before any provider row is inserted or updated and never include the upstream body in the error
+    code:
+      - path: backend/src/main/java/com/visualizedexp/backend/provider/ProviderVerifier.java
+        symbol: rejectCredentialEcho
+      - path: backend/src/main/java/com/visualizedexp/backend/search/TavilySearchProvider.java
+        symbol: search
+      - path: backend/src/main/java/com/visualizedexp/backend/search/BraveSearchProvider.java
+        symbol: search
+    tests:
+      - path: backend/src/test/java/com/visualizedexp/backend/provider/ProviderVerifierTest.java
+        symbol: rejectsVerificationResponsesThatEchoTheCandidateCredential
+      - path: backend/src/test/java/com/visualizedexp/backend/search/TavilySearchProviderTest.java
+        symbol: rejectsMalformedAndCredentialFailureResponses
+      - path: backend/src/test/java/com/visualizedexp/backend/search/BraveSearchProviderTest.java
+        symbol: rejectsMalformedAndCredentialFailureResponses

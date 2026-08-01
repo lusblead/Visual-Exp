@@ -1,0 +1,1160 @@
+{
+  "protocol": "visual-token-latency-matrix/1",
+  "baselineCommit": "636db946a42f820f530fb99caf7717ed2d53b997",
+  "instrumentation": "provider_usage_callback_only",
+  "isolation": "one isolated baseline local stack shared across sequential cases",
+  "retryPolicy": "no evaluator retry; the product retains its original provider retry and repair policy",
+  "datasetPath": "evals/datasets/token-latency-frozen.jsonl",
+  "startedAt": "2026-07-28T04:04:19.435Z",
+  "completedAt": "2026-07-28T04:21:06.638Z",
+  "expectedRuns": 20,
+  "runs": [
+    {
+      "runId": "arch-low-01-01",
+      "caseId": "arch-low-01",
+      "category": "technical_architecture",
+      "complexity": "low",
+      "sample": 1,
+      "observedAt": "2026-07-28T04:05:20.206Z",
+      "status": "failed",
+      "failureStage": "expand",
+      "errorCode": "provider_response_invalid",
+      "frontier": {
+        "directChildren": 5,
+        "oldModeMinimumSceneCalls": 5,
+        "oldModeMinimumTermBatchCalls": 3,
+        "oldModeMinimumBackgroundCalls": 8
+      },
+      "metrics": [
+        {
+          "action": "create",
+          "model": "deepseek-v4-pro",
+          "ttftMs": null,
+          "totalMs": 25122,
+          "finishReason": "accepted",
+          "contentLength": 8341,
+          "usage": {
+            "providerCompletions": 1,
+            "knownCompletions": 1,
+            "promptTokens": 2366,
+            "completionTokens": 1624,
+            "totalTokens": 3990,
+            "promptCacheHitTokens": 2304,
+            "promptCacheMissTokens": 62
+          }
+        },
+        {
+          "action": "expand",
+          "model": "deepseek-v4-pro",
+          "ttftMs": null,
+          "totalMs": 30411,
+          "finishReason": "rejected",
+          "contentLength": 143,
+          "usage": {
+            "providerCompletions": 0,
+            "knownCompletions": 0,
+            "promptTokens": null,
+            "completionTokens": null,
+            "totalTokens": null,
+            "promptCacheHitTokens": null,
+            "promptCacheMissTokens": null
+          },
+          "errorCode": "provider_response_invalid"
+        }
+      ]
+    },
+    {
+      "runId": "arch-medium-01-01",
+      "caseId": "arch-medium-01",
+      "category": "technical_architecture",
+      "complexity": "medium",
+      "sample": 1,
+      "observedAt": "2026-07-28T04:06:20.879Z",
+      "status": "accepted",
+      "frontier": {
+        "directChildren": 6,
+        "oldModeMinimumSceneCalls": 6,
+        "oldModeMinimumTermBatchCalls": 7,
+        "oldModeMinimumBackgroundCalls": 13
+      },
+      "metrics": [
+        {
+          "action": "create",
+          "model": "deepseek-v4-pro",
+          "ttftMs": null,
+          "totalMs": 34469,
+          "finishReason": "accepted",
+          "contentLength": 10984,
+          "usage": {
+            "providerCompletions": 1,
+            "knownCompletions": 1,
+            "promptTokens": 2377,
+            "completionTokens": 2190,
+            "totalTokens": 4567,
+            "promptCacheHitTokens": 2304,
+            "promptCacheMissTokens": 73
+          }
+        },
+        {
+          "action": "expand",
+          "model": "deepseek-v4-pro",
+          "ttftMs": null,
+          "totalMs": 23586,
+          "finishReason": "accepted",
+          "contentLength": 24439,
+          "usage": {
+            "providerCompletions": 1,
+            "knownCompletions": 1,
+            "promptTokens": 2609,
+            "completionTokens": 1624,
+            "totalTokens": 4233,
+            "promptCacheHitTokens": 384,
+            "promptCacheMissTokens": 2225
+          }
+        },
+        {
+          "action": "define_batch",
+          "model": "deepseek-v4-flash",
+          "ttftMs": null,
+          "totalMs": 2618,
+          "finishReason": "accepted",
+          "contentLength": 1450,
+          "usage": {
+            "providerCompletions": 1,
+            "knownCompletions": 1,
+            "promptTokens": 1390,
+            "completionTokens": 184,
+            "totalTokens": 1574,
+            "promptCacheHitTokens": 256,
+            "promptCacheMissTokens": 1134
+          }
+        }
+      ]
+    },
+    {
+      "runId": "arch-medium-01-02",
+      "caseId": "arch-medium-01",
+      "category": "technical_architecture",
+      "complexity": "medium",
+      "sample": 2,
+      "observedAt": "2026-07-28T04:07:46.687Z",
+      "status": "accepted",
+      "frontier": {
+        "directChildren": 5,
+        "oldModeMinimumSceneCalls": 5,
+        "oldModeMinimumTermBatchCalls": 6,
+        "oldModeMinimumBackgroundCalls": 11
+      },
+      "metrics": [
+        {
+          "action": "create",
+          "model": "deepseek-v4-pro",
+          "ttftMs": null,
+          "totalMs": 63168,
+          "finishReason": "accepted",
+          "contentLength": 10861,
+          "usage": {
+            "providerCompletions": 2,
+            "knownCompletions": 2,
+            "promptTokens": 6838,
+            "completionTokens": 4080,
+            "totalTokens": 10918,
+            "promptCacheHitTokens": 6528,
+            "promptCacheMissTokens": 310
+          }
+        },
+        {
+          "action": "expand",
+          "model": "deepseek-v4-pro",
+          "ttftMs": null,
+          "totalMs": 20058,
+          "finishReason": "accepted",
+          "contentLength": 20847,
+          "usage": {
+            "providerCompletions": 1,
+            "knownCompletions": 1,
+            "promptTokens": 2651,
+            "completionTokens": 1296,
+            "totalTokens": 3947,
+            "promptCacheHitTokens": 384,
+            "promptCacheMissTokens": 2267
+          }
+        },
+        {
+          "action": "define_batch",
+          "model": "deepseek-v4-flash",
+          "ttftMs": null,
+          "totalMs": 2581,
+          "finishReason": "accepted",
+          "contentLength": 1413,
+          "usage": {
+            "providerCompletions": 1,
+            "knownCompletions": 1,
+            "promptTokens": 1360,
+            "completionTokens": 186,
+            "totalTokens": 1546,
+            "promptCacheHitTokens": 256,
+            "promptCacheMissTokens": 1104
+          }
+        }
+      ]
+    },
+    {
+      "runId": "arch-medium-01-03",
+      "caseId": "arch-medium-01",
+      "category": "technical_architecture",
+      "complexity": "medium",
+      "sample": 3,
+      "observedAt": "2026-07-28T04:08:46.993Z",
+      "status": "failed",
+      "failureStage": "create",
+      "errorCode": "provider_response_invalid",
+      "metrics": [
+        {
+          "action": "create",
+          "model": "deepseek-v4-pro",
+          "ttftMs": null,
+          "totalMs": 60303,
+          "finishReason": "rejected",
+          "contentLength": 143,
+          "usage": {
+            "providerCompletions": 0,
+            "knownCompletions": 0,
+            "promptTokens": null,
+            "completionTokens": null,
+            "totalTokens": null,
+            "promptCacheHitTokens": null,
+            "promptCacheMissTokens": null
+          },
+          "errorCode": "provider_response_invalid"
+        }
+      ]
+    },
+    {
+      "runId": "arch-high-01-01",
+      "caseId": "arch-high-01",
+      "category": "technical_architecture",
+      "complexity": "high",
+      "sample": 1,
+      "observedAt": "2026-07-28T04:08:47.302Z",
+      "status": "failed",
+      "failureStage": "create",
+      "errorCode": "lineage_response_invalid",
+      "metrics": [
+        {
+          "action": "create",
+          "model": "deepseek-v4-pro",
+          "ttftMs": null,
+          "totalMs": 308,
+          "finishReason": "transport_failure",
+          "contentLength": 0,
+          "usage": {
+            "providerCompletions": 0,
+            "knownCompletions": 0,
+            "promptTokens": null,
+            "completionTokens": null,
+            "totalTokens": null,
+            "promptCacheHitTokens": null,
+            "promptCacheMissTokens": null
+          },
+          "errorCode": "lineage_response_invalid"
+        }
+      ]
+    },
+    {
+      "runId": "mechanism-low-01-01",
+      "caseId": "mechanism-low-01",
+      "category": "mechanism_process",
+      "complexity": "low",
+      "sample": 1,
+      "observedAt": "2026-07-28T04:08:47.619Z",
+      "status": "failed",
+      "failureStage": "create",
+      "errorCode": "lineage_response_invalid",
+      "metrics": [
+        {
+          "action": "create",
+          "model": "deepseek-v4-pro",
+          "ttftMs": null,
+          "totalMs": 317,
+          "finishReason": "transport_failure",
+          "contentLength": 0,
+          "usage": {
+            "providerCompletions": 0,
+            "knownCompletions": 0,
+            "promptTokens": null,
+            "completionTokens": null,
+            "totalTokens": null,
+            "promptCacheHitTokens": null,
+            "promptCacheMissTokens": null
+          },
+          "errorCode": "lineage_response_invalid"
+        }
+      ]
+    },
+    {
+      "runId": "mechanism-medium-01-01",
+      "caseId": "mechanism-medium-01",
+      "category": "mechanism_process",
+      "complexity": "medium",
+      "sample": 1,
+      "observedAt": "2026-07-28T04:08:47.923Z",
+      "status": "failed",
+      "failureStage": "create",
+      "errorCode": "lineage_response_invalid",
+      "metrics": [
+        {
+          "action": "create",
+          "model": "deepseek-v4-pro",
+          "ttftMs": null,
+          "totalMs": 303,
+          "finishReason": "transport_failure",
+          "contentLength": 0,
+          "usage": {
+            "providerCompletions": 0,
+            "knownCompletions": 0,
+            "promptTokens": null,
+            "completionTokens": null,
+            "totalTokens": null,
+            "promptCacheHitTokens": null,
+            "promptCacheMissTokens": null
+          },
+          "errorCode": "lineage_response_invalid"
+        }
+      ]
+    },
+    {
+      "runId": "mechanism-medium-01-02",
+      "caseId": "mechanism-medium-01",
+      "category": "mechanism_process",
+      "complexity": "medium",
+      "sample": 2,
+      "observedAt": "2026-07-28T04:09:32.486Z",
+      "status": "accepted",
+      "frontier": {
+        "directChildren": 5,
+        "oldModeMinimumSceneCalls": 5,
+        "oldModeMinimumTermBatchCalls": 4,
+        "oldModeMinimumBackgroundCalls": 9
+      },
+      "metrics": [
+        {
+          "action": "create",
+          "model": "deepseek-v4-pro",
+          "ttftMs": null,
+          "totalMs": 21906,
+          "finishReason": "accepted",
+          "contentLength": 7745,
+          "usage": {
+            "providerCompletions": 1,
+            "knownCompletions": 1,
+            "promptTokens": 2368,
+            "completionTokens": 1666,
+            "totalTokens": 4034,
+            "promptCacheHitTokens": 384,
+            "promptCacheMissTokens": 1984
+          }
+        },
+        {
+          "action": "expand",
+          "model": "deepseek-v4-pro",
+          "ttftMs": null,
+          "totalMs": 19836,
+          "finishReason": "accepted",
+          "contentLength": 18242,
+          "usage": {
+            "providerCompletions": 1,
+            "knownCompletions": 1,
+            "promptTokens": 2482,
+            "completionTokens": 1319,
+            "totalTokens": 3801,
+            "promptCacheHitTokens": 384,
+            "promptCacheMissTokens": 2098
+          }
+        },
+        {
+          "action": "define_batch",
+          "model": "deepseek-v4-flash",
+          "ttftMs": null,
+          "totalMs": 2820,
+          "finishReason": "accepted",
+          "contentLength": 1485,
+          "usage": {
+            "providerCompletions": 1,
+            "knownCompletions": 1,
+            "promptTokens": 1319,
+            "completionTokens": 201,
+            "totalTokens": 1520,
+            "promptCacheHitTokens": 256,
+            "promptCacheMissTokens": 1063
+          }
+        }
+      ]
+    },
+    {
+      "runId": "mechanism-medium-01-03",
+      "caseId": "mechanism-medium-01",
+      "category": "mechanism_process",
+      "complexity": "medium",
+      "sample": 3,
+      "observedAt": "2026-07-28T04:10:20.797Z",
+      "status": "accepted",
+      "frontier": {
+        "directChildren": 6,
+        "oldModeMinimumSceneCalls": 6,
+        "oldModeMinimumTermBatchCalls": 7,
+        "oldModeMinimumBackgroundCalls": 13
+      },
+      "metrics": [
+        {
+          "action": "create",
+          "model": "deepseek-v4-pro",
+          "ttftMs": null,
+          "totalMs": 29160,
+          "finishReason": "accepted",
+          "contentLength": 9417,
+          "usage": {
+            "providerCompletions": 1,
+            "knownCompletions": 1,
+            "promptTokens": 2368,
+            "completionTokens": 2017,
+            "totalTokens": 4385,
+            "promptCacheHitTokens": 2304,
+            "promptCacheMissTokens": 64
+          }
+        },
+        {
+          "action": "expand",
+          "model": "deepseek-v4-pro",
+          "ttftMs": null,
+          "totalMs": 16451,
+          "finishReason": "accepted",
+          "contentLength": 18399,
+          "usage": {
+            "providerCompletions": 1,
+            "knownCompletions": 1,
+            "promptTokens": 2549,
+            "completionTokens": 1168,
+            "totalTokens": 3717,
+            "promptCacheHitTokens": 384,
+            "promptCacheMissTokens": 2165
+          }
+        },
+        {
+          "action": "define_batch",
+          "model": "deepseek-v4-flash",
+          "ttftMs": null,
+          "totalMs": 2699,
+          "finishReason": "accepted",
+          "contentLength": 1787,
+          "usage": {
+            "providerCompletions": 1,
+            "knownCompletions": 1,
+            "promptTokens": 1657,
+            "completionTokens": 250,
+            "totalTokens": 1907,
+            "promptCacheHitTokens": 256,
+            "promptCacheMissTokens": 1401
+          }
+        }
+      ]
+    },
+    {
+      "runId": "mechanism-high-01-01",
+      "caseId": "mechanism-high-01",
+      "category": "mechanism_process",
+      "complexity": "high",
+      "sample": 1,
+      "observedAt": "2026-07-28T04:11:00.816Z",
+      "status": "accepted",
+      "frontier": {
+        "directChildren": 5,
+        "oldModeMinimumSceneCalls": 5,
+        "oldModeMinimumTermBatchCalls": 6,
+        "oldModeMinimumBackgroundCalls": 11
+      },
+      "metrics": [
+        {
+          "action": "create",
+          "model": "deepseek-v4-pro",
+          "ttftMs": null,
+          "totalMs": 21592,
+          "finishReason": "accepted",
+          "contentLength": 7426,
+          "usage": {
+            "providerCompletions": 1,
+            "knownCompletions": 1,
+            "promptTokens": 2387,
+            "completionTokens": 1504,
+            "totalTokens": 3891,
+            "promptCacheHitTokens": 384,
+            "promptCacheMissTokens": 2003
+          }
+        },
+        {
+          "action": "expand",
+          "model": "deepseek-v4-pro",
+          "ttftMs": null,
+          "totalMs": 16920,
+          "finishReason": "accepted",
+          "contentLength": 16442,
+          "usage": {
+            "providerCompletions": 1,
+            "knownCompletions": 1,
+            "promptTokens": 2475,
+            "completionTokens": 1094,
+            "totalTokens": 3569,
+            "promptCacheHitTokens": 384,
+            "promptCacheMissTokens": 2091
+          }
+        },
+        {
+          "action": "define_batch",
+          "model": "deepseek-v4-flash",
+          "ttftMs": null,
+          "totalMs": 1506,
+          "finishReason": "accepted",
+          "contentLength": 949,
+          "usage": {
+            "providerCompletions": 1,
+            "knownCompletions": 1,
+            "promptTokens": 1133,
+            "completionTokens": 104,
+            "totalTokens": 1237,
+            "promptCacheHitTokens": 256,
+            "promptCacheMissTokens": 877
+          }
+        }
+      ]
+    },
+    {
+      "runId": "humanities-low-01-01",
+      "caseId": "humanities-low-01",
+      "category": "humanities_knowledge",
+      "complexity": "low",
+      "sample": 1,
+      "observedAt": "2026-07-28T04:11:46.496Z",
+      "status": "accepted",
+      "frontier": {
+        "directChildren": 5,
+        "oldModeMinimumSceneCalls": 5,
+        "oldModeMinimumTermBatchCalls": 2,
+        "oldModeMinimumBackgroundCalls": 7
+      },
+      "metrics": [
+        {
+          "action": "create",
+          "model": "deepseek-v4-pro",
+          "ttftMs": null,
+          "totalMs": 26268,
+          "finishReason": "accepted",
+          "contentLength": 7894,
+          "usage": {
+            "providerCompletions": 1,
+            "knownCompletions": 1,
+            "promptTokens": 2357,
+            "completionTokens": 1528,
+            "totalTokens": 3885,
+            "promptCacheHitTokens": 384,
+            "promptCacheMissTokens": 1973
+          }
+        },
+        {
+          "action": "expand",
+          "model": "deepseek-v4-pro",
+          "ttftMs": null,
+          "totalMs": 17637,
+          "finishReason": "accepted",
+          "contentLength": 15657,
+          "usage": {
+            "providerCompletions": 1,
+            "knownCompletions": 1,
+            "promptTokens": 2505,
+            "completionTokens": 970,
+            "totalTokens": 3475,
+            "promptCacheHitTokens": 384,
+            "promptCacheMissTokens": 2121
+          }
+        },
+        {
+          "action": "define_batch",
+          "model": "deepseek-v4-flash",
+          "ttftMs": null,
+          "totalMs": 1776,
+          "finishReason": "accepted",
+          "contentLength": 888,
+          "usage": {
+            "providerCompletions": 1,
+            "knownCompletions": 1,
+            "promptTokens": 1134,
+            "completionTokens": 112,
+            "totalTokens": 1246,
+            "promptCacheHitTokens": 256,
+            "promptCacheMissTokens": 878
+          }
+        }
+      ]
+    },
+    {
+      "runId": "humanities-medium-01-01",
+      "caseId": "humanities-medium-01",
+      "category": "humanities_knowledge",
+      "complexity": "medium",
+      "sample": 1,
+      "observedAt": "2026-07-28T04:12:46.722Z",
+      "status": "accepted",
+      "frontier": {
+        "directChildren": 6,
+        "oldModeMinimumSceneCalls": 6,
+        "oldModeMinimumTermBatchCalls": 6,
+        "oldModeMinimumBackgroundCalls": 12
+      },
+      "metrics": [
+        {
+          "action": "create",
+          "model": "deepseek-v4-pro",
+          "ttftMs": null,
+          "totalMs": 41707,
+          "finishReason": "accepted",
+          "contentLength": 8689,
+          "usage": {
+            "providerCompletions": 2,
+            "knownCompletions": 2,
+            "promptTokens": 6579,
+            "completionTokens": 3275,
+            "totalTokens": 9854,
+            "promptCacheHitTokens": 4352,
+            "promptCacheMissTokens": 2227
+          }
+        },
+        {
+          "action": "expand",
+          "model": "deepseek-v4-pro",
+          "ttftMs": null,
+          "totalMs": 15618,
+          "finishReason": "accepted",
+          "contentLength": 15527,
+          "usage": {
+            "providerCompletions": 1,
+            "knownCompletions": 1,
+            "promptTokens": 2466,
+            "completionTokens": 895,
+            "totalTokens": 3361,
+            "promptCacheHitTokens": 384,
+            "promptCacheMissTokens": 2082
+          }
+        },
+        {
+          "action": "define_batch",
+          "model": "deepseek-v4-flash",
+          "ttftMs": null,
+          "totalMs": 2900,
+          "finishReason": "accepted",
+          "contentLength": 1477,
+          "usage": {
+            "providerCompletions": 1,
+            "knownCompletions": 1,
+            "promptTokens": 1338,
+            "completionTokens": 203,
+            "totalTokens": 1541,
+            "promptCacheHitTokens": 256,
+            "promptCacheMissTokens": 1082
+          }
+        }
+      ]
+    },
+    {
+      "runId": "humanities-medium-01-02",
+      "caseId": "humanities-medium-01",
+      "category": "humanities_knowledge",
+      "complexity": "medium",
+      "sample": 2,
+      "observedAt": "2026-07-28T04:13:37.529Z",
+      "status": "failed",
+      "failureStage": "create",
+      "errorCode": "provider_response_invalid",
+      "metrics": [
+        {
+          "action": "create",
+          "model": "deepseek-v4-pro",
+          "ttftMs": null,
+          "totalMs": 50805,
+          "finishReason": "rejected",
+          "contentLength": 143,
+          "usage": {
+            "providerCompletions": 0,
+            "knownCompletions": 0,
+            "promptTokens": null,
+            "completionTokens": null,
+            "totalTokens": null,
+            "promptCacheHitTokens": null,
+            "promptCacheMissTokens": null
+          },
+          "errorCode": "provider_response_invalid"
+        }
+      ]
+    },
+    {
+      "runId": "humanities-medium-01-03",
+      "caseId": "humanities-medium-01",
+      "category": "humanities_knowledge",
+      "complexity": "medium",
+      "sample": 3,
+      "observedAt": "2026-07-28T04:14:52.634Z",
+      "status": "accepted",
+      "frontier": {
+        "directChildren": 6,
+        "oldModeMinimumSceneCalls": 6,
+        "oldModeMinimumTermBatchCalls": 6,
+        "oldModeMinimumBackgroundCalls": 12
+      },
+      "metrics": [
+        {
+          "action": "create",
+          "model": "deepseek-v4-pro",
+          "ttftMs": null,
+          "totalMs": 53927,
+          "finishReason": "accepted",
+          "contentLength": 10240,
+          "usage": {
+            "providerCompletions": 2,
+            "knownCompletions": 2,
+            "promptTokens": 6892,
+            "completionTokens": 3909,
+            "totalTokens": 10801,
+            "promptCacheHitTokens": 6528,
+            "promptCacheMissTokens": 364
+          }
+        },
+        {
+          "action": "expand",
+          "model": "deepseek-v4-pro",
+          "ttftMs": null,
+          "totalMs": 18747,
+          "finishReason": "accepted",
+          "contentLength": 18707,
+          "usage": {
+            "providerCompletions": 1,
+            "knownCompletions": 1,
+            "promptTokens": 2554,
+            "completionTokens": 1102,
+            "totalTokens": 3656,
+            "promptCacheHitTokens": 384,
+            "promptCacheMissTokens": 2170
+          }
+        },
+        {
+          "action": "define_batch",
+          "model": "deepseek-v4-flash",
+          "ttftMs": null,
+          "totalMs": 2429,
+          "finishReason": "accepted",
+          "contentLength": 1468,
+          "usage": {
+            "providerCompletions": 1,
+            "knownCompletions": 1,
+            "promptTokens": 1440,
+            "completionTokens": 193,
+            "totalTokens": 1633,
+            "promptCacheHitTokens": 256,
+            "promptCacheMissTokens": 1184
+          }
+        }
+      ]
+    },
+    {
+      "runId": "humanities-high-01-01",
+      "caseId": "humanities-high-01",
+      "category": "humanities_knowledge",
+      "complexity": "high",
+      "sample": 1,
+      "observedAt": "2026-07-28T04:15:51.275Z",
+      "status": "accepted",
+      "frontier": {
+        "directChildren": 6,
+        "oldModeMinimumSceneCalls": 6,
+        "oldModeMinimumTermBatchCalls": 7,
+        "oldModeMinimumBackgroundCalls": 13
+      },
+      "metrics": [
+        {
+          "action": "create",
+          "model": "deepseek-v4-pro",
+          "ttftMs": null,
+          "totalMs": 32443,
+          "finishReason": "accepted",
+          "contentLength": 9948,
+          "usage": {
+            "providerCompletions": 1,
+            "knownCompletions": 1,
+            "promptTokens": 2378,
+            "completionTokens": 1985,
+            "totalTokens": 4363,
+            "promptCacheHitTokens": 384,
+            "promptCacheMissTokens": 1994
+          }
+        },
+        {
+          "action": "expand",
+          "model": "deepseek-v4-pro",
+          "ttftMs": null,
+          "totalMs": 22884,
+          "finishReason": "accepted",
+          "contentLength": 19686,
+          "usage": {
+            "providerCompletions": 1,
+            "knownCompletions": 1,
+            "promptTokens": 2624,
+            "completionTokens": 1249,
+            "totalTokens": 3873,
+            "promptCacheHitTokens": 384,
+            "promptCacheMissTokens": 2240
+          }
+        },
+        {
+          "action": "define_batch",
+          "model": "deepseek-v4-flash",
+          "ttftMs": null,
+          "totalMs": 3313,
+          "finishReason": "accepted",
+          "contentLength": 1881,
+          "usage": {
+            "providerCompletions": 1,
+            "knownCompletions": 1,
+            "promptTokens": 1564,
+            "completionTokens": 262,
+            "totalTokens": 1826,
+            "promptCacheHitTokens": 256,
+            "promptCacheMissTokens": 1308
+          }
+        }
+      ]
+    },
+    {
+      "runId": "decision-low-01-01",
+      "caseId": "decision-low-01",
+      "category": "comparative_decision",
+      "complexity": "low",
+      "sample": 1,
+      "observedAt": "2026-07-28T04:16:35.692Z",
+      "status": "accepted",
+      "frontier": {
+        "directChildren": 4,
+        "oldModeMinimumSceneCalls": 4,
+        "oldModeMinimumTermBatchCalls": 5,
+        "oldModeMinimumBackgroundCalls": 9
+      },
+      "metrics": [
+        {
+          "action": "create",
+          "model": "deepseek-v4-pro",
+          "ttftMs": null,
+          "totalMs": 19603,
+          "finishReason": "accepted",
+          "contentLength": 6588,
+          "usage": {
+            "providerCompletions": 1,
+            "knownCompletions": 1,
+            "promptTokens": 2369,
+            "completionTokens": 1281,
+            "totalTokens": 3650,
+            "promptCacheHitTokens": 384,
+            "promptCacheMissTokens": 1985
+          }
+        },
+        {
+          "action": "expand",
+          "model": "deepseek-v4-pro",
+          "ttftMs": null,
+          "totalMs": 21136,
+          "finishReason": "accepted",
+          "contentLength": 18951,
+          "usage": {
+            "providerCompletions": 1,
+            "knownCompletions": 1,
+            "promptTokens": 2519,
+            "completionTokens": 1460,
+            "totalTokens": 3979,
+            "promptCacheHitTokens": 384,
+            "promptCacheMissTokens": 2135
+          }
+        },
+        {
+          "action": "define_batch",
+          "model": "deepseek-v4-flash",
+          "ttftMs": null,
+          "totalMs": 3677,
+          "finishReason": "accepted",
+          "contentLength": 2119,
+          "usage": {
+            "providerCompletions": 1,
+            "knownCompletions": 1,
+            "promptTokens": 1702,
+            "completionTokens": 310,
+            "totalTokens": 2012,
+            "promptCacheHitTokens": 256,
+            "promptCacheMissTokens": 1446
+          }
+        }
+      ]
+    },
+    {
+      "runId": "decision-medium-01-01",
+      "caseId": "decision-medium-01",
+      "category": "comparative_decision",
+      "complexity": "medium",
+      "sample": 1,
+      "observedAt": "2026-07-28T04:17:28.732Z",
+      "status": "failed",
+      "failureStage": "expand",
+      "errorCode": "lineage_request_failed_econnreset",
+      "frontier": {
+        "directChildren": 5,
+        "oldModeMinimumSceneCalls": 5,
+        "oldModeMinimumTermBatchCalls": 4,
+        "oldModeMinimumBackgroundCalls": 9
+      },
+      "metrics": [
+        {
+          "action": "create",
+          "model": "deepseek-v4-pro",
+          "ttftMs": null,
+          "totalMs": 34085,
+          "finishReason": "accepted",
+          "contentLength": 8709,
+          "usage": {
+            "providerCompletions": 1,
+            "knownCompletions": 1,
+            "promptTokens": 2391,
+            "completionTokens": 1857,
+            "totalTokens": 4248,
+            "promptCacheHitTokens": 384,
+            "promptCacheMissTokens": 2007
+          }
+        },
+        {
+          "action": "expand",
+          "model": "deepseek-v4-pro",
+          "ttftMs": null,
+          "totalMs": 18956,
+          "finishReason": "transport_failure",
+          "contentLength": 0,
+          "usage": {
+            "providerCompletions": 0,
+            "knownCompletions": 0,
+            "promptTokens": null,
+            "completionTokens": null,
+            "totalTokens": null,
+            "promptCacheHitTokens": null,
+            "promptCacheMissTokens": null
+          },
+          "errorCode": "lineage_request_failed_econnreset"
+        }
+      ]
+    },
+    {
+      "runId": "decision-medium-01-02",
+      "caseId": "decision-medium-01",
+      "category": "comparative_decision",
+      "complexity": "medium",
+      "sample": 2,
+      "observedAt": "2026-07-28T04:18:34.643Z",
+      "status": "accepted",
+      "frontier": {
+        "directChildren": 5,
+        "oldModeMinimumSceneCalls": 5,
+        "oldModeMinimumTermBatchCalls": 6,
+        "oldModeMinimumBackgroundCalls": 11
+      },
+      "metrics": [
+        {
+          "action": "create",
+          "model": "deepseek-v4-pro",
+          "ttftMs": null,
+          "totalMs": 32104,
+          "finishReason": "accepted",
+          "contentLength": 8411,
+          "usage": {
+            "providerCompletions": 1,
+            "knownCompletions": 1,
+            "promptTokens": 2391,
+            "completionTokens": 1791,
+            "totalTokens": 4182,
+            "promptCacheHitTokens": 2304,
+            "promptCacheMissTokens": 87
+          }
+        },
+        {
+          "action": "expand",
+          "model": "deepseek-v4-pro",
+          "ttftMs": null,
+          "totalMs": 29469,
+          "finishReason": "accepted",
+          "contentLength": 20383,
+          "usage": {
+            "providerCompletions": 1,
+            "knownCompletions": 1,
+            "promptTokens": 2647,
+            "completionTokens": 1547,
+            "totalTokens": 4194,
+            "promptCacheHitTokens": 384,
+            "promptCacheMissTokens": 2263
+          }
+        },
+        {
+          "action": "define_batch",
+          "model": "deepseek-v4-flash",
+          "ttftMs": null,
+          "totalMs": 4339,
+          "finishReason": "accepted",
+          "contentLength": 2595,
+          "usage": {
+            "providerCompletions": 1,
+            "knownCompletions": 1,
+            "promptTokens": 2082,
+            "completionTokens": 423,
+            "totalTokens": 2505,
+            "promptCacheHitTokens": 256,
+            "promptCacheMissTokens": 1826
+          }
+        }
+      ]
+    },
+    {
+      "runId": "decision-medium-01-03",
+      "caseId": "decision-medium-01",
+      "category": "comparative_decision",
+      "complexity": "medium",
+      "sample": 3,
+      "observedAt": "2026-07-28T04:19:35.481Z",
+      "status": "accepted",
+      "frontier": {
+        "directChildren": 5,
+        "oldModeMinimumSceneCalls": 5,
+        "oldModeMinimumTermBatchCalls": 3,
+        "oldModeMinimumBackgroundCalls": 8
+      },
+      "metrics": [
+        {
+          "action": "create",
+          "model": "deepseek-v4-pro",
+          "ttftMs": null,
+          "totalMs": 30334,
+          "finishReason": "accepted",
+          "contentLength": 7869,
+          "usage": {
+            "providerCompletions": 1,
+            "knownCompletions": 1,
+            "promptTokens": 2391,
+            "completionTokens": 1605,
+            "totalTokens": 3996,
+            "promptCacheHitTokens": 2304,
+            "promptCacheMissTokens": 87
+          }
+        },
+        {
+          "action": "expand",
+          "model": "deepseek-v4-pro",
+          "ttftMs": null,
+          "totalMs": 28094,
+          "finishReason": "accepted",
+          "contentLength": 19281,
+          "usage": {
+            "providerCompletions": 1,
+            "knownCompletions": 1,
+            "promptTokens": 2531,
+            "completionTokens": 1436,
+            "totalTokens": 3967,
+            "promptCacheHitTokens": 384,
+            "promptCacheMissTokens": 2147
+          }
+        },
+        {
+          "action": "define_batch",
+          "model": "deepseek-v4-flash",
+          "ttftMs": null,
+          "totalMs": 2409,
+          "finishReason": "accepted",
+          "contentLength": 1443,
+          "usage": {
+            "providerCompletions": 1,
+            "knownCompletions": 1,
+            "promptTokens": 1438,
+            "completionTokens": 214,
+            "totalTokens": 1652,
+            "promptCacheHitTokens": 256,
+            "promptCacheMissTokens": 1182
+          }
+        }
+      ]
+    },
+    {
+      "runId": "decision-high-01-01",
+      "caseId": "decision-high-01",
+      "category": "comparative_decision",
+      "complexity": "high",
+      "sample": 1,
+      "observedAt": "2026-07-28T04:21:06.637Z",
+      "status": "accepted",
+      "frontier": {
+        "directChildren": 5,
+        "oldModeMinimumSceneCalls": 5,
+        "oldModeMinimumTermBatchCalls": 6,
+        "oldModeMinimumBackgroundCalls": 11
+      },
+      "metrics": [
+        {
+          "action": "create",
+          "model": "deepseek-v4-pro",
+          "ttftMs": null,
+          "totalMs": 35112,
+          "finishReason": "accepted",
+          "contentLength": 9562,
+          "usage": {
+            "providerCompletions": 1,
+            "knownCompletions": 1,
+            "promptTokens": 2400,
+            "completionTokens": 1972,
+            "totalTokens": 4372,
+            "promptCacheHitTokens": 384,
+            "promptCacheMissTokens": 2016
+          }
+        },
+        {
+          "action": "expand",
+          "model": "deepseek-v4-pro",
+          "ttftMs": null,
+          "totalMs": 54222,
+          "finishReason": "accepted",
+          "contentLength": 21169,
+          "usage": {
+            "providerCompletions": 1,
+            "knownCompletions": 1,
+            "promptTokens": 2619,
+            "completionTokens": 1493,
+            "totalTokens": 4112,
+            "promptCacheHitTokens": 2560,
+            "promptCacheMissTokens": 59
+          }
+        },
+        {
+          "action": "define_batch",
+          "model": "deepseek-v4-flash",
+          "ttftMs": null,
+          "totalMs": 1818,
+          "finishReason": "accepted",
+          "contentLength": 1364,
+          "usage": {
+            "providerCompletions": 1,
+            "knownCompletions": 1,
+            "promptTokens": 1417,
+            "completionTokens": 192,
+            "totalTokens": 1609,
+            "promptCacheHitTokens": 256,
+            "promptCacheMissTokens": 1161
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,407 @@
+version: 1
+feature_id: "visual-explanation.session-lifecycle"
+title: "Persist and restore knowledge sessions"
+status: "implemented"
+
+characteristics:
+  cross_component: true
+  asynchronous: true
+  persisted_state: true
+  external_dependencies: false
+  retry_or_compensation: false
+  security_sensitive: true
+
+nodes:
+  E1:
+    kind: entry
+    description: LineageStudio mounts and initializes the authoritative backend session repository
+    trigger: LineageStudio hydration effect
+    code:
+      - path: components/lineage-studio.tsx
+        symbol: BackendKnowledgeSessionRepository
+      - path: lib/backend-knowledge-session-repository.ts
+        symbol: BackendKnowledgeSessionRepository
+    tests:
+      - path: tests/client-navigation.test.mjs
+        symbol: "knowledge sessions use the backend repository without removing the offline implementation"
+
+  A1:
+    kind: action
+    description: Read the owner-scoped active or newest complete session and bounded summaries from Java
+    code:
+      - path: lib/backend-knowledge-session-repository.ts
+        symbol: restoreLatest
+      - path: backend/src/main/java/com/visualizedexp/backend/session/KnowledgeSessionController.java
+        symbol: restore
+      - path: backend/src/main/java/com/visualizedexp/backend/session/KnowledgeSessionService.java
+        symbol: restore
+    tests:
+      - path: tests/backend-knowledge-session-repository.test.mjs
+        symbol: "backend repository restores the authoritative session envelope"
+
+  D1:
+    kind: decision
+    description: Accept only a structurally valid restore envelope and optional canonical session
+    condition: response contains bounded unique summaries and session is null or parses as visual-knowledge-session/1
+    code:
+      - path: lib/backend-knowledge-session-repository.ts
+        symbol: restoreLatest
+      - path: lib/knowledge-session-contract.ts
+        symbol: parseKnowledgeSession
+    tests:
+      - path: tests/backend-knowledge-session-repository.test.mjs
+        symbol: "backend repository restores the authoritative session envelope"
+
+  A2:
+    kind: action
+    description: Abort active task families and restore only accepted document navigation completed caches profile and receipts
+    code:
+      - path: components/lineage-studio.tsx
+        symbol: restoreKnowledgeSession
+    tests:
+      - path: tests/client-navigation.test.mjs
+        symbol: "session hydration gates creation and every background model effect"
+
+  E2:
+    kind: entry
+    description: Accepted semantic session state changes after hydration
+    trigger: document navigation completed explanation cache profile or usage receipt state update
+    code:
+      - path: components/lineage-studio.tsx
+        symbol: buildKnowledgeSessionSnapshot
+
+  A3:
+    kind: action
+    description: Build a bounded immutable canonical session snapshot with the next client revision
+    code:
+      - path: components/lineage-studio.tsx
+        symbol: buildKnowledgeSessionSnapshot
+      - path: lib/knowledge-session-contract.ts
+        symbol: createKnowledgeSession
+    tests:
+      - path: tests/knowledge-session.test.mjs
+        symbol: "createKnowledgeSession produces a canonical v1 record that round-trips"
+
+  A4:
+    kind: action
+    description: PUT the complete snapshot through the same-origin backend repository
+    code:
+      - path: lib/backend-knowledge-session-repository.ts
+        symbol: save
+      - path: app/api/backend/[...path]/route.ts
+        symbol: PUT
+      - path: backend/src/main/java/com/visualizedexp/backend/session/KnowledgeSessionController.java
+        symbol: save
+    tests:
+      - path: tests/backend-knowledge-session-repository.test.mjs
+        symbol: "backend repository saves the complete protocol with revision CAS semantics"
+
+  A10:
+    kind: action
+    description: Capture the parsed snapshot and serialize every browser save activate and delete mutation behind the prior mutation
+    code:
+      - path: lib/backend-knowledge-session-repository.ts
+        symbol: enqueueWrite
+    tests:
+      - path: tests/backend-knowledge-session-repository.test.mjs
+        symbol: "backend repository serializes rapid mutations and continues after failure"
+
+  D2:
+    kind: decision
+    description: Validate exact protocol schema bounds timestamps sensitive fields and serialized size
+    condition: KnowledgeSessionValidator accepts the full body and path ID equals session ID
+    code:
+      - path: backend/src/main/java/com/visualizedexp/backend/session/KnowledgeSessionValidator.java
+        symbol: validate
+    tests:
+      - path: backend/src/test/java/com/visualizedexp/backend/BackendApiIntegrationTest.java
+        symbol: savesOnlyNewerStrictKnowledgeSessionsAndIsolatesOwners
+      - path: tests/knowledge-session.test.mjs
+        symbol: "unsupported and sensitive fields are rejected at every persistence boundary"
+
+  D3:
+    kind: decision
+    description: Apply revision compare-and-set before changing durable payload
+    condition: row is a placeholder or stored client revision is lower than submitted revision
+    code:
+      - path: backend/src/main/java/com/visualizedexp/backend/session/KnowledgeSessionRepository.java
+        symbol: save
+    tests:
+      - path: backend/src/test/java/com/visualizedexp/backend/BackendApiIntegrationTest.java
+        symbol: savesOnlyNewerStrictKnowledgeSessionsAndIsolatesOwners
+      - path: tests/backend-knowledge-session-repository.test.mjs
+        symbol: "backend repository saves the complete protocol with revision CAS semantics"
+
+  T0:
+    kind: transition
+    description: Create an owner-scoped placeholder when chat reaches a session ID before its complete semantic snapshot exists
+    entity: KnowledgeSession
+    from: ABSENT
+    to: PLACEHOLDER
+    trigger: first_chat_turn_for_session
+    code:
+      - path: backend/src/main/java/com/visualizedexp/backend/session/KnowledgeSessionService.java
+        symbol: ensureChatSession
+      - path: backend/src/main/java/com/visualizedexp/backend/session/KnowledgeSessionRepository.java
+        symbol: ensurePlaceholder
+    tests:
+      - path: backend/src/test/java/com/visualizedexp/backend/BackendApiIntegrationTest.java
+        symbol: chatTurnIsIdempotentAndDoesNotReplayAmbiguousOrFailedCalls
+
+  T1:
+    kind: transition
+    description: Store the first or newer complete session payload and make it active in one Java transaction
+    entity: KnowledgeSession
+    from: NONE_OR_PLACEHOLDER_OR_OLDER_COMPLETE
+    to: COMPLETE_ACTIVE
+    trigger: accepted_higher_revision_save
+    code:
+      - path: backend/src/main/java/com/visualizedexp/backend/session/KnowledgeSessionRepository.java
+        symbol: save
+    tests:
+      - path: backend/src/test/java/com/visualizedexp/backend/BackendApiIntegrationTest.java
+        symbol: savesOnlyNewerStrictKnowledgeSessionsAndIsolatesOwners
+
+  E3:
+    kind: entry
+    description: User selects another complete server-backed knowledge-session summary
+    trigger: KnowledgeSessionControls history button
+    code:
+      - path: components/knowledge-session-controls.tsx
+        symbol: KnowledgeSessionControls
+      - path: components/lineage-studio.tsx
+        symbol: selectKnowledgeSession
+
+  A5:
+    kind: action
+    description: Save the latest current snapshot before switching sessions
+    code:
+      - path: components/lineage-studio.tsx
+        symbol: selectKnowledgeSession
+      - path: lib/backend-knowledge-session-repository.ts
+        symbol: save
+
+  A6:
+    kind: action
+    description: Read the selected complete session from Java
+    code:
+      - path: lib/backend-knowledge-session-repository.ts
+        symbol: read
+      - path: backend/src/main/java/com/visualizedexp/backend/session/KnowledgeSessionService.java
+        symbol: read
+
+  D4:
+    kind: decision
+    description: Adopt only an existing selected session that passes the browser canonical parser
+    condition: Java returns a non-placeholder session and parseKnowledgeSession succeeds
+    code:
+      - path: lib/backend-knowledge-session-repository.ts
+        symbol: read
+      - path: components/lineage-studio.tsx
+        symbol: selectKnowledgeSession
+    tests:
+      - path: tests/backend-knowledge-session-repository.test.mjs
+        symbol: "backend repository reads, activates, and deletes one selected session"
+      - path: tests/backend-knowledge-session-repository.test.mjs
+        symbol: "backend repository rejects a mismatched selected session envelope"
+
+  A7:
+    kind: action
+    description: Abort old work and replace browser state with the selected accepted snapshot
+    code:
+      - path: components/lineage-studio.tsx
+        symbol: restoreKnowledgeSession
+
+  T2:
+    kind: transition
+    description: Switch the owner-scoped active flag to the selected complete session
+    entity: ActiveKnowledgeSession
+    from: PREVIOUS_OR_NONE
+    to: SELECTED_COMPLETE_SESSION
+    trigger: explicit_session_selection
+    code:
+      - path: lib/backend-knowledge-session-repository.ts
+        symbol: activate
+      - path: backend/src/main/java/com/visualizedexp/backend/session/KnowledgeSessionRepository.java
+        symbol: activate
+    tests:
+      - path: tests/backend-knowledge-session-repository.test.mjs
+        symbol: "backend repository reads, activates, and deletes one selected session"
+      - path: backend/src/test/java/com/visualizedexp/backend/BackendApiIntegrationTest.java
+        symbol: readsActivatesRestoresAndDeletesDurableSessions
+
+  E4:
+    kind: entry
+    description: Authorized API client requests deletion of one owner-scoped session
+    trigger: DELETE /api/v1/sessions/{sessionId}
+    code:
+      - path: backend/src/main/java/com/visualizedexp/backend/session/KnowledgeSessionController.java
+        symbol: delete
+
+  T3:
+    kind: transition
+    description: Delete the session and all chat turns sharing its owner and session ID
+    entity: KnowledgeSession
+    from: PLACEHOLDER_OR_COMPLETE_OR_ACTIVE
+    to: DELETED
+    trigger: explicit_backend_delete
+    code:
+      - path: backend/src/main/java/com/visualizedexp/backend/session/KnowledgeSessionRepository.java
+        symbol: delete
+    tests:
+      - path: tests/backend-knowledge-session-repository.test.mjs
+        symbol: "backend repository reads, activates, and deletes one selected session"
+      - path: backend/src/test/java/com/visualizedexp/backend/BackendApiIntegrationTest.java
+        symbol: readsActivatesRestoresAndDeletesDurableSessions
+
+  E5:
+    kind: entry
+    description: User exports the active accepted knowledge
+    trigger: KnowledgeSessionControls Markdown or JSON export
+    code:
+      - path: components/knowledge-session-controls.tsx
+        symbol: KnowledgeSessionControls
+      - path: components/lineage-studio.tsx
+        symbol: exportKnowledge
+
+  A8:
+    kind: action
+    description: Project accepted semantic state to deterministic secret-free JSON or Markdown
+    code:
+      - path: lib/knowledge-export.ts
+        symbol: createKnowledgeExportArtifact
+    tests:
+      - path: tests/knowledge-export.test.mjs
+        symbol: "JSON and Markdown exports are deterministic and secret free"
+
+  X1:
+    kind: outcome
+    description: Authoritative history is unavailable
+    result: Current page remains usable with error or unavailable save status and no IndexedDB fallback
+
+  X2:
+    kind: outcome
+    description: Hydrated empty workspace is ready
+    result: No session is created until a semantic document is accepted
+
+  X3:
+    kind: outcome
+    description: Authoritative session is restored
+    result: Accepted document and completed local workflow state render with server summaries
+
+  X4:
+    kind: outcome
+    description: Invalid session save is rejected
+    result: No Java payload mutation and browser exposes retry state
+
+  X5:
+    kind: outcome
+    description: Stale save is read-only
+    result: saved false stale true and the newer stored payload remains unchanged
+
+  X6:
+    kind: outcome
+    description: New session revision is durable
+    result: Response contains summaries of up to 50 most recently updated complete sessions
+
+  X7:
+    kind: outcome
+    description: Selected session cannot be restored
+    result: Current session remains and a visible restore error is set
+
+  X8:
+    kind: outcome
+    description: Selected session becomes active
+    result: Its semantic state renders and SelectionChatPanel separately loads turns for the same session ID
+
+  X9:
+    kind: outcome
+    description: Deleted session is absent
+    result: Neither its semantic payload nor its chat turns can be restored
+
+  X10:
+    kind: outcome
+    description: Portable export is downloaded
+    result: Deterministic artifact contains semantic knowledge and completed explanations but no chat turns or credentials
+
+  G1:
+    kind: safeguard
+    description: Same-origin owner isolation and internal backend authentication
+    safeguard_type: authorization
+    guarantee: Browser session APIs receive only the server-created device owner ID and launcher internal bearer
+    protects: [A1, A4, A6, T3]
+    failure_behavior: Reject cross-origin writes invalid owner identity or invalid internal bearer before persistence
+    code:
+      - path: app/api/backend/[...path]/route.ts
+        symbol: forward
+      - path: backend/src/main/java/com/visualizedexp/backend/auth/InternalTokenFilter.java
+        symbol: InternalTokenFilter
+      - path: backend/src/main/java/com/visualizedexp/backend/auth/OwnerIdentity.java
+        symbol: require
+    tests:
+      - path: tests/backend-proxy.test.mjs
+        symbol: "backend proxy rejects cross-origin writes before contacting Java"
+      - path: backend/src/test/java/com/visualizedexp/backend/BackendApiIntegrationTest.java
+        symbol: healthBypassesOwnerAndInternalTokenButChecksDatabase
+
+  G2:
+    kind: safeguard
+    description: Canonical schema and sensitive-field exclusion
+    safeguard_type: validation
+    guarantee: Only bounded visual-knowledge-session/1 data without runtime or secret fields is persisted or exported
+    protects: [D2, A8]
+    failure_behavior: Reject the whole Java save or export request before mutation or download
+    code:
+      - path: backend/src/main/java/com/visualizedexp/backend/session/KnowledgeSessionValidator.java
+        symbol: KnowledgeSessionValidator
+      - path: lib/knowledge-session-contract.ts
+        symbol: parseKnowledgeSession
+      - path: lib/knowledge-export.ts
+        symbol: createKnowledgeExportArtifact
+    tests:
+      - path: tests/knowledge-session.test.mjs
+        symbol: "the canonical record contains no runtime or credential field names"
+      - path: tests/knowledge-export.test.mjs
+        symbol: "JSON and Markdown exports are deterministic and secret free"
+
+  G3:
+    kind: safeguard
+    description: Monotonic revision compare-and-set
+    safeguard_type: concurrency
+    guarantee: Equal or lower client revisions never overwrite a newer Java session payload
+    protects: [D3, T1]
+    failure_behavior: Return saved false and stale true without mutation
+    code:
+      - path: backend/src/main/java/com/visualizedexp/backend/session/KnowledgeSessionRepository.java
+        symbol: save
+    tests:
+      - path: backend/src/test/java/com/visualizedexp/backend/BackendApiIntegrationTest.java
+        symbol: savesOnlyNewerStrictKnowledgeSessionsAndIsolatesOwners
+
+  G4:
+    kind: safeguard
+    description: Restore-time task isolation
+    safeguard_type: concurrency
+    guarantee: A restored session cannot receive a late document background term or deep result from the previous session
+    protects: [A2, A7]
+    failure_behavior: Abort prior controllers increment document epoch reset task stores and adopt only completed snapshot entries
+    code:
+      - path: components/lineage-studio.tsx
+        symbol: restoreKnowledgeSession
+    tests:
+      - path: tests/client-navigation.test.mjs
+        symbol: "session hydration gates creation and every background model effect"
+
+  G5:
+    kind: safeguard
+    description: One failure-tolerant browser mutation queue
+    safeguard_type: concurrency
+    guarantee: Parsed snapshots are fixed when enqueued and save activate and delete requests execute one at a time in call order; a rejected mutation cannot block later work
+    protects: [A10, A4, A5, T2, T3]
+    failure_behavior: Reject only the failed caller promise then release the queue for the next mutation while Java revision CAS remains the durable stale-write boundary
+    code:
+      - path: lib/backend-knowledge-session-repository.ts
+        symbol: enqueueWrite
+    tests:
+      - path: tests/backend-knowledge-session-repository.test.mjs
+        symbol: "backend repository serializes rapid mutations and continues after failure"

@@ -1,0 +1,66 @@
+{
+  "protocol": "visual-token-latency-observation/1",
+  "runId": "baseline-636db946-run-001",
+  "observedAt": "2026-07-28T11:31:05.5753291+08:00",
+  "baselineCommit": "636db946a42f820f530fb99caf7717ed2d53b997",
+  "sourceIsolation": "git archive of baseline commit with shared immutable dependency directory",
+  "question": "请分层解释 Agent 与 RAG 如何协作构成可靠的知识问答系统。",
+  "models": {
+    "scene": "deepseek-v4-pro",
+    "term": "deepseek-v4-flash"
+  },
+  "runtime": {
+    "os": "Windows",
+    "node": "v24.11.1",
+    "npm": "11.6.2",
+    "dotnetSdk": "10.0.302",
+    "samples": 1
+  },
+  "metrics": [
+    {
+      "action": "create",
+      "model": "deepseek-v4-pro",
+      "ttftMs": null,
+      "totalMs": 30009,
+      "finishReason": "accepted",
+      "contentLength": 8215
+    },
+    {
+      "action": "expand",
+      "model": "deepseek-v4-pro",
+      "ttftMs": null,
+      "totalMs": 19377,
+      "finishReason": "accepted",
+      "contentLength": 17783
+    },
+    {
+      "action": "define",
+      "model": "deepseek-v4-flash",
+      "ttftMs": null,
+      "totalMs": 1385,
+      "finishReason": "accepted",
+      "contentLength": 730
+    },
+    {
+      "action": "stream_probe",
+      "model": "deepseek-v4-pro",
+      "ttftMs": 828,
+      "totalMs": 1214,
+      "finishReason": "stop",
+      "contentLength": 94
+    },
+    {
+      "action": "stream_probe",
+      "model": "deepseek-v4-flash",
+      "ttftMs": 577,
+      "totalMs": 755,
+      "finishReason": "stop",
+      "contentLength": 90
+    }
+  ],
+  "limitations": [
+    "The baseline route did not expose provider usage, so this run contains latency and response-byte evidence but no provider-reported token counts.",
+    "Structured create, expand, and define endpoints return only after complete JSON validation; their TTFT is therefore null rather than inferred from total time.",
+    "A single run cannot establish p50, p95, or confidence intervals."
+  ]
+}

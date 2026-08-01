@@ -1,0 +1,42 @@
+server:
+  address: ${APP_BIND_ADDRESS:127.0.0.1}
+  port: ${PORT:8080}
+  max-http-request-header-size: 32KB
+
+spring:
+  application:
+    name: visualized-exp-backend
+  datasource:
+    url: "${APP_DATABASE_URL:jdbc:h2:file:./data/visualized-exp;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH}"
+    username: ${APP_DATABASE_USERNAME:sa}
+    password: ${APP_DATABASE_PASSWORD:}
+  flyway:
+    enabled: true
+    clean-disabled: true
+  jackson:
+    deserialization:
+      fail-on-unknown-properties: true
+      fail-on-trailing-tokens: true
+  servlet:
+    multipart:
+      enabled: false
+
+app:
+  auth:
+    owner-header: ${APP_OWNER_HEADER:X-Owner-Id}
+    default-owner: ${APP_DEFAULT_OWNER:}
+    internal-token: ${APP_INTERNAL_TOKEN:}
+  crypto:
+    master-key-base64: ${APP_CREDENTIAL_MASTER_KEY:${APP_MASTER_KEY_BASE64:}}
+  providers:
+    connect-timeout: 10s
+    request-timeout: 45s
+    allow-private-addresses: ${APP_ALLOW_PRIVATE_PROVIDER_ADDRESSES:false}
+  local-companion:
+    enabled: ${APP_LOCAL_COMPANION_ENABLED:false}
+    origin: ${APP_LOCAL_COMPANION_URL:}
+    token: ${APP_LOCAL_COMPANION_TOKEN:}
+  sessions:
+    list-limit: 50
+  chat:
+    pending-timeout: 5m

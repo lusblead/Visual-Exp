@@ -1,0 +1,32 @@
+{
+  "protocol": "visual-token-latency-matrix/1",
+  "baselineCommit": "636db946a42f820f530fb99caf7717ed2d53b997",
+  "instrumentation": "provider_usage_callback_only",
+  "retryPolicy": "no implicit retry outside the product provider retry",
+  "datasetPath": "evals/datasets/token-latency-frozen.jsonl",
+  "startedAt": "2026-07-28T03:49:50.807Z",
+  "completedAt": "2026-07-28T03:51:24.224Z",
+  "expectedRuns": 20,
+  "runs": [
+    {
+      "runId": "arch-low-01-01",
+      "caseId": "arch-low-01",
+      "category": "technical_architecture",
+      "complexity": "low",
+      "sample": 1,
+      "observedAt": "2026-07-28T03:49:50.809Z",
+      "status": "failed",
+      "errorCode": "lineage_request_failed"
+    },
+    {
+      "runId": "arch-medium-01-01",
+      "caseId": "arch-medium-01",
+      "category": "technical_architecture",
+      "complexity": "medium",
+      "sample": 1,
+      "observedAt": "2026-07-28T03:50:22.119Z",
+      "status": "failed",
+      "errorCode": "web_start_timeout"
+    }
+  ]
+}

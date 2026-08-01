@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://visual-explanation.local/schemas/visual-lineage-operations.schema.json",
+  "title": "Visual Explanation Operation Batch v2",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "protocol": { "const": "visual-explanation-operations/2" },
+    "baseVersion": { "type": "integer", "minimum": 1 },
+    "operations": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 24,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": ["add_node", "add_relation", "update_node"]
+          },
+          "node": {
+            "anyOf": [
+              { "$ref": "visual-lineage-document.schema.json#/$defs/node" },
+              { "type": "null" }
+            ]
+          },
+          "relation": {
+            "anyOf": [
+              { "$ref": "visual-lineage-document.schema.json#/$defs/relation" },
+              { "type": "null" }
+            ]
+          },
+          "nodeId": { "type": ["string", "null"] },
+          "patch": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "title": { "type": ["string", "null"] },
+                  "eyebrow": { "type": ["string", "null"] },
+                  "summary": { "type": ["string", "null"] },
+                  "detail": { "type": ["string", "null"] },
+                  "terms": {
+                    "anyOf": [
+                      {
+                        "type": "array",
+                        "items": { "type": "string", "minLength": 1, "maxLength": 40 },
+                        "uniqueItems": true,
+                        "maxItems": 8
+                      },
+                      { "type": "null" }
+                    ]
+                  },
+                  "view": {
+                    "enum": ["grid", "sequence", "timeline", "compare", "cluster", null]
+                  },
+                  "expandable": { "type": ["boolean", "null"] },
+                  "expansionState": {
+                    "enum": ["outline", "expanded", "terminal", null]
+                  },
+                  "emphasis": {
+                    "enum": ["primary", "secondary", "detail", null]
+                  }
+                },
+                "required": [
+                  "title",
+                  "eyebrow",
+                  "summary",
+                  "detail",
+                  "terms",
+                  "view",
+                  "expandable",
+                  "expansionState",
+                  "emphasis"
+                ]
+              },
+              { "type": "null" }
+            ]
+          }
+        },
+        "required": ["kind", "node", "relation", "nodeId", "patch"]
+      }
+    }
+  },
+  "required": ["protocol", "baseVersion", "operations"]
+}

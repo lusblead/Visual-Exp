@@ -1,0 +1,482 @@
+version: 1
+feature_id: "visual-explanation.selection-chat"
+title: "Ask AI about selected text"
+status: "implemented"
+
+characteristics:
+  cross_component: true
+  asynchronous: true
+  persisted_state: true
+  external_dependencies: true
+  retry_or_compensation: true
+  security_sensitive: true
+
+nodes:
+  E1:
+    kind: entry
+    description: User selects prose rendered by the current semantic or explanation workspace
+    trigger: pointerup or keyup text selection
+    code:
+      - path: components/lineage-studio.tsx
+        symbol: captureSelection
+
+  D1:
+    kind: decision
+    description: Admit only a bounded selection that the browser can associate with current rendered context
+    condition: normalized text is 1 through 600 characters and a semantic node or current explanation supplies a node ID
+    code:
+      - path: components/lineage-studio.tsx
+        symbol: captureSelection
+    tests:
+      - path: tests/client-navigation.test.mjs
+        symbol: "selected prose offers independent AI question and deep-reading actions"
+
+  D2:
+    kind: decision
+    description: Route the two visible selection actions independently
+    condition: user chooses Ask AI or Deepen
+    code:
+      - path: components/lineage-scene-primitives.tsx
+        symbol: SelectionAction
+      - path: components/lineage-studio.tsx
+        symbol: askAboutSelectedText
+      - path: components/lineage-studio.tsx
+        symbol: deepenSelectedText
+    tests:
+      - path: tests/client-navigation.test.mjs
+        symbol: "selected prose offers independent AI question and deep-reading actions"
+
+  A1:
+    kind: action
+    description: Freeze the selected quote in browser state and open the chat workspace without submitting a turn
+    code:
+      - path: components/lineage-studio.tsx
+        symbol: askAboutSelectedText
+      - path: components/selection-chat-panel.tsx
+        symbol: SelectionChatPanel
+    tests:
+      - path: tests/client-navigation.test.mjs
+        symbol: "selected prose offers independent AI question and deep-reading actions"
+
+  E2:
+    kind: entry
+    description: User submits a question about the frozen selection
+    trigger: SelectionChatPanel composer submit
+    code:
+      - path: components/selection-chat-panel.tsx
+        symbol: submitTurn
+
+  A2:
+    kind: action
+    description: Send the turn through the same-origin proxy with device owner identity and backend bearer added server-side
+    code:
+      - path: lib/selection-chat-client.ts
+        symbol: createSelectionChatTurn
+      - path: app/api/backend/[...path]/route.ts
+        symbol: forward
+    tests:
+      - path: tests/selection-chat-client.test.mjs
+        symbol: "selection chat POST defaults each turn to auto search and accepts 202"
+      - path: tests/backend-proxy.test.mjs
+        symbol: "backend proxy preserves a valid owner, adds only its internal bearer, and forwards JSON"
+
+  D3:
+    kind: decision
+    description: Validate the submitted IDs question selection and optional context-token shape
+    condition: all expected fields are present and within Java bounds; unsupported JSON fields are rejected
+    code:
+      - path: backend/src/main/java/com/visualizedexp/backend/chat/ChatService.java
+        symbol: validate
+      - path: backend/src/main/java/com/visualizedexp/backend/common/InputRules.java
+        symbol: InputRules
+    tests:
+      - path: backend/src/test/java/com/visualizedexp/backend/BackendApiIntegrationTest.java
+        symbol: chatTurnIsIdempotentAndDoesNotReplayAmbiguousOrFailedCalls
+
+  D4:
+    kind: decision
+    description: Resolve duplicate submission by owner-scoped clientTurnId and immutable request hash including search mode
+    condition: no row exists or the existing row has the same question selection context identity and search mode hash with a replayable status
+    code:
+      - path: backend/src/main/java/com/visualizedexp/backend/chat/ChatService.java
+        symbol: replay
+      - path: backend/src/main/java/com/visualizedexp/backend/chat/ChatTurnRepository.java
+        symbol: findByClientTurnId
+    tests:
+      - path: backend/src/test/java/com/visualizedexp/backend/BackendApiIntegrationTest.java
+        symbol: chatTurnIsIdempotentAndDoesNotReplayAmbiguousOrFailedCalls
+
+  T1:
+    kind: transition
+    description: Insert one durable pending turn with the requested search mode before external model work
+    entity: ChatTurn
+    from: NONE
+    to: PENDING
+    trigger: unique_valid_submission
+    code:
+      - path: backend/src/main/java/com/visualizedexp/backend/chat/ChatTurnRepository.java
+        symbol: insertPending
+    tests:
+      - path: backend/src/test/java/com/visualizedexp/backend/BackendApiIntegrationTest.java
+        symbol: chatTurnIsIdempotentAndDoesNotReplayAmbiguousOrFailedCalls
+      - path: backend/src/test/java/com/visualizedexp/backend/BackendApiIntegrationTest.java
+        symbol: chatPersistsExplicitSearchModeAndObservedExecution
+
+  D7:
+    kind: decision
+    description: Resolve the owner-scoped active Java model as an explicit selection-chat override
+    condition: ProviderService finds one active MODEL profile for this owner
+    code:
+      - path: backend/src/main/java/com/visualizedexp/backend/chat/SelectionChatModelResolver.java
+        symbol: require
+    tests:
+      - path: backend/src/test/java/com/visualizedexp/backend/chat/SelectionChatModelResolverTest.java
+        symbol: ownerScopedActiveProviderOverridesTheDeviceCompanion
+      - path: backend/src/test/java/com/visualizedexp/backend/chat/SelectionChatModelResolverTest.java
+        symbol: anotherOwnerWithoutAnOverrideFallsBackToTheDeviceCompanion
+
+  D8:
+    kind: decision
+    description: Fall back to the device DeepSeek default only when the authenticated companion reports a stored credential
+    condition: no active Java model override exists and LocalDeepSeekCompanionClient status reports configured true
+    code:
+      - path: backend/src/main/java/com/visualizedexp/backend/chat/SelectionChatModelResolver.java
+        symbol: require
+      - path: backend/src/main/java/com/visualizedexp/backend/chat/LocalDeepSeekCompanionClient.java
+        symbol: isCredentialConfigured
+    tests:
+      - path: backend/src/test/java/com/visualizedexp/backend/chat/SelectionChatModelResolverTest.java
+        symbol: anotherOwnerWithoutAnOverrideFallsBackToTheDeviceCompanion
+      - path: backend/src/test/java/com/visualizedexp/backend/chat/SelectionChatModelResolverTest.java
+        symbol: rejectsChatWhenNeitherAnOverrideNorACompanionCredentialExists
+
+  A3:
+    kind: action
+    description: Load completed session turns and execute the active configured model protocol plus its optional bounded web-search tool loop
+    code:
+      - path: backend/src/main/java/com/visualizedexp/backend/chat/ChatService.java
+        symbol: submit
+      - path: backend/src/main/java/com/visualizedexp/backend/chat/OpenAiCompatibleChatClient.java
+        symbol: complete
+    external_call:
+      system: Active OpenAI Chat Completions or Anthropic Messages provider and optional active Tavily or Brave search provider
+      timeout: 45s per upstream HTTP request
+      failure_behavior: Mark known failures FAILED and ambiguous model transport non-replayable; never replay the same turn automatically
+      failure_nodes: [T3, T4, X7, X8]
+
+  A5:
+    kind: action
+    description: Load completed history and call the fixed DeepSeek Pro default through the authenticated local companion
+    code:
+      - path: backend/src/main/java/com/visualizedexp/backend/chat/ChatService.java
+        symbol: submit
+      - path: backend/src/main/java/com/visualizedexp/backend/chat/OpenAiCompatibleChatClient.java
+        symbol: complete
+      - path: backend/src/main/java/com/visualizedexp/backend/chat/LocalDeepSeekCompanionClient.java
+        symbol: sendChat
+    external_call:
+      system: Authenticated local companion and its fixed DeepSeek proxy
+      timeout: 45s Java companion request and companion-owned upstream timeout
+      failure_behavior: Classify known failure versus ambiguous model transport without replaying the durable turn
+      failure_nodes: [T3, T4, X7, X8]
+    tests:
+      - path: backend/src/test/java/com/visualizedexp/backend/chat/OpenAiCompatibleChatClientTest.java
+        symbol: usesConfiguredLocalCompanionWhenOwnerHasNoModelOverride
+      - path: backend/src/test/java/com/visualizedexp/backend/chat/LocalDeepSeekCompanionClientTest.java
+        symbol: usesFixedStatusAndChatPathsWithTheLauncherBearer
+
+  D9:
+    kind: decision
+    description: Reject a custom model response that contains the exact active provider credential before assistant parsing
+    condition: successful persisted-provider response body does not contain its decrypted API Key
+    code:
+      - path: backend/src/main/java/com/visualizedexp/backend/chat/OpenAiCompatibleChatClient.java
+        symbol: sendModelRequest
+      - path: backend/src/main/java/com/visualizedexp/backend/provider/ProviderVerifier.java
+        symbol: rejectCredentialEcho
+    tests:
+      - path: backend/src/test/java/com/visualizedexp/backend/chat/OpenAiCompatibleChatClientTest.java
+        symbol: rejectsProviderResponsesThatEchoTheActiveCredential
+
+  D5:
+    kind: decision
+    description: Classify the model operation as successful known failure or ambiguous transport
+    condition: SelectionChatModelClient returns a completion or throws an UpstreamException with its ambiguity flag
+    code:
+      - path: backend/src/main/java/com/visualizedexp/backend/chat/ChatService.java
+        symbol: submit
+    tests:
+      - path: backend/src/test/java/com/visualizedexp/backend/BackendApiIntegrationTest.java
+        symbol: chatTurnIsIdempotentAndDoesNotReplayAmbiguousOrFailedCalls
+
+  T2:
+    kind: transition
+    description: Complete the pending turn with assistant text optional provider profile ID observed search execution trace and normalized sources
+    entity: ChatTurn
+    from: PENDING
+    to: COMPLETED
+    trigger: model_completion_success
+    code:
+      - path: backend/src/main/java/com/visualizedexp/backend/chat/ChatTurnRepository.java
+        symbol: complete
+    tests:
+      - path: backend/src/test/java/com/visualizedexp/backend/BackendApiIntegrationTest.java
+        symbol: chatTurnIsIdempotentAndDoesNotReplayAmbiguousOrFailedCalls
+      - path: backend/src/test/java/com/visualizedexp/backend/BackendApiIntegrationTest.java
+        symbol: chatPersistsExplicitSearchModeAndObservedExecution
+
+  T3:
+    kind: transition
+    description: Persist a safe failure code for a known provider or validation failure after insertion
+    entity: ChatTurn
+    from: PENDING
+    to: FAILED
+    trigger: known_failure
+    code:
+      - path: backend/src/main/java/com/visualizedexp/backend/chat/ChatTurnRepository.java
+        symbol: markFailed
+    tests:
+      - path: backend/src/test/java/com/visualizedexp/backend/BackendApiIntegrationTest.java
+        symbol: chatTurnIsIdempotentAndDoesNotReplayAmbiguousOrFailedCalls
+
+  T4:
+    kind: transition
+    description: Preserve an ambiguous model transport result without provider replay
+    entity: ChatTurn
+    from: PENDING
+    to: STATE_WRITTEN_BY_markUnknown
+    trigger: ambiguous_model_transport
+    code:
+      - path: backend/src/main/java/com/visualizedexp/backend/chat/ChatTurnRepository.java
+        symbol: markUnknown
+    tests:
+      - path: backend/src/test/java/com/visualizedexp/backend/BackendApiIntegrationTest.java
+        symbol: chatTurnIsIdempotentAndDoesNotReplayAmbiguousOrFailedCalls
+
+  E3:
+    kind: entry
+    description: Chat panel mounts for an active knowledge session or the user refreshes history
+    trigger: SelectionChatPanel mount session switch or refresh
+    code:
+      - path: components/selection-chat-panel.tsx
+        symbol: refreshTurns
+
+  A4:
+    kind: action
+    description: Abort stale browser requests and list turns only for the active session
+    code:
+      - path: components/selection-chat-panel.tsx
+        symbol: refreshTurns
+      - path: lib/selection-chat-client.ts
+        symbol: listSelectionChatTurns
+      - path: backend/src/main/java/com/visualizedexp/backend/chat/ChatController.java
+        symbol: list
+    tests:
+      - path: tests/selection-chat-client.test.mjs
+        symbol: "selection chat history uses the same-origin BFF and normalizes turn status"
+
+  C1:
+    kind: compensation
+    description: Detect a stale pending row and recover it without invoking the provider again
+    restores_or_resolves: A process interruption cannot leave a stale row looking actively in flight or cause an automatic duplicate model call
+    failure_behavior: If recovery persistence fails the history request fails and the pending row is not replayed
+    code:
+      - path: backend/src/main/java/com/visualizedexp/backend/chat/ChatService.java
+        symbol: list
+      - path: backend/src/main/java/com/visualizedexp/backend/chat/ChatTurnRepository.java
+        symbol: recoverStalePending
+    tests:
+      - path: backend/src/test/java/com/visualizedexp/backend/BackendApiIntegrationTest.java
+        symbol: stalePendingTurnBecomesNonReplayableDuringHistoryRead
+
+  T5:
+    kind: transition
+    description: Recover a stale pending row into the ambiguous non-replayable state during list or duplicate read
+    entity: ChatTurn
+    from: PENDING
+    to: STATE_WRITTEN_BY_markUnknown
+    trigger: pending_older_than_configured_timeout
+    code:
+      - path: backend/src/main/java/com/visualizedexp/backend/chat/ChatTurnRepository.java
+        symbol: recoverStalePending
+      - path: backend/src/main/java/com/visualizedexp/backend/chat/ChatService.java
+        symbol: recoverIfStale
+    tests:
+      - path: backend/src/test/java/com/visualizedexp/backend/BackendApiIntegrationTest.java
+        symbol: stalePendingTurnBecomesNonReplayableDuringHistoryRead
+
+  X1:
+    kind: outcome
+    description: Invalid browser selection is cleared
+    result: No chat or deep-reading request occurs
+
+  X2:
+    kind: outcome
+    description: Existing structured deep-reading flow receives the selection
+    result: Chat panel and chat_turns are unchanged
+
+  X3:
+    kind: outcome
+    description: Chat composer opens with a frozen quote
+    result: No turn is persisted until submit
+
+  X4:
+    kind: outcome
+    description: Invalid Java request is rejected
+    result: Typed 4xx response before turn insertion or provider access
+
+  X5:
+    kind: outcome
+    description: Failed or conflicting idempotency key is rejected
+    result: Existing row is unchanged and caller must use a new clientTurnId
+
+  X6:
+    kind: outcome
+    description: Completed turn is returned
+    result: Browser receives assistant text and normalized source metadata
+
+  X7:
+    kind: outcome
+    description: Pending or ambiguous turn is returned without replay
+    result: HTTP 202 instructs the browser to refresh stored state
+
+  X8:
+    kind: outcome
+    description: Known turn failure is explicit
+    result: Typed provider or configuration error while prior session history remains readable
+
+  X9:
+    kind: outcome
+    description: Active session history is rendered in chronological order
+    result: At most the most recent 200 session turns are shown
+
+  E4:
+    kind: entry
+    description: User opens the persistent AI launcher or closes the visible conversation workspace
+    trigger: SelectionChatPanel launcher or close button
+    code:
+      - path: components/selection-chat-panel.tsx
+        symbol: SelectionChatPanel
+
+  D6:
+    kind: decision
+    description: Apply explicit panel visibility instead of inferring visibility from desktop width
+    condition: chatPanelOpen is true or false for an available active knowledge session
+    code:
+      - path: components/lineage-studio.tsx
+        symbol: chatWorkspaceVisible
+      - path: components/selection-chat-panel.tsx
+        symbol: panelVisible
+    tests:
+      - path: tests/client-navigation.test.mjs
+        symbol: "selected prose offers independent AI question and deep-reading actions"
+
+  X10:
+    kind: outcome
+    description: Conversation workspace is hidden while durable and loaded history remains
+    result: Desktop layout releases the left rail and the persistent launcher remains available
+    tests:
+      - path: tests/client-navigation.test.mjs
+        symbol: "selected prose offers independent AI question and deep-reading actions"
+
+  G1:
+    kind: safeguard
+    description: Bounded selection and request input
+    safeguard_type: validation
+    guarantee: Oversized malformed or unsupported input is rejected before external provider work
+    protects: [D1, D3]
+    failure_behavior: Clear the browser action or return a typed validation error
+    code:
+      - path: components/lineage-studio.tsx
+        symbol: captureSelection
+      - path: backend/src/main/java/com/visualizedexp/backend/chat/ChatService.java
+        symbol: validate
+    tests:
+      - path: tests/client-navigation.test.mjs
+        symbol: "selected prose offers independent AI question and deep-reading actions"
+
+  G2:
+    kind: safeguard
+    description: Idempotent turn submission
+    safeguard_type: idempotency
+    guarantee: One owner-scoped clientTurnId and request hash cause at most one model invocation
+    protects: [D4, T1]
+    failure_behavior: Return stored state or reject conflicting reuse
+    code:
+      - path: backend/src/main/java/com/visualizedexp/backend/chat/ChatService.java
+        symbol: replay
+      - path: backend/src/main/java/com/visualizedexp/backend/chat/ChatTurnRepository.java
+        symbol: insertPending
+    tests:
+      - path: backend/src/test/java/com/visualizedexp/backend/BackendApiIntegrationTest.java
+        symbol: chatTurnIsIdempotentAndDoesNotReplayAmbiguousOrFailedCalls
+
+  G3:
+    kind: safeguard
+    description: Server-only provider credentials
+    safeguard_type: privacy
+    guarantee: Model and search keys never enter chat DTOs browser history or semantic-session payloads
+    protects: [A3, A5]
+    failure_behavior: Return safe provider status or error fields only
+    code:
+      - path: backend/src/main/java/com/visualizedexp/backend/crypto/SecretCipher.java
+        symbol: SecretCipher
+      - path: backend/src/main/java/com/visualizedexp/backend/provider/ProviderService.java
+        symbol: requireActive
+      - path: backend/src/main/java/com/visualizedexp/backend/chat/LocalDeepSeekCompanionClient.java
+        symbol: sendChat
+    tests:
+      - path: backend/src/test/java/com/visualizedexp/backend/BackendApiIntegrationTest.java
+        symbol: providerApiNeverReturnsOrStoresPlaintextCredential
+
+  G4:
+    kind: safeguard
+    description: Active-session delivery isolation
+    safeguard_type: concurrency
+    guarantee: Stale list and send requests are aborted or ignored when the keyed chat panel changes session
+    protects: [A4, X9]
+    failure_behavior: Keep durable history and discard only stale browser delivery
+    code:
+      - path: components/selection-chat-panel.tsx
+        symbol: SelectionChatPanel
+      - path: components/lineage-studio.tsx
+        symbol: SelectionChatPanel
+    tests:
+      - path: tests/backend-knowledge-session-repository.test.mjs
+        symbol: "backend repository aborts in-flight reads when closed"
+      - path: tests/client-navigation.test.mjs
+        symbol: "selected prose offers independent AI question and deep-reading actions"
+
+  G5:
+    kind: safeguard
+    description: Explicit conversation-panel visibility
+    safeguard_type: validation
+    guarantee: Desktop viewport width cannot force the conversation workspace open; closing hides the rail without deleting loaded or persisted history and leaves the launcher usable
+    protects: [D6, X10]
+    failure_behavior: Keep the panel closed until an explicit Ask AI or launcher action sets chatPanelOpen
+    code:
+      - path: components/lineage-studio.tsx
+        symbol: chatWorkspaceVisible
+      - path: components/selection-chat-panel.tsx
+        symbol: panelVisible
+      - path: app/styles/selection-chat.css
+        symbol: selection-chat-launcher
+    tests:
+      - path: tests/client-navigation.test.mjs
+        symbol: "selected prose offers independent AI question and deep-reading actions"
+
+  G6:
+    kind: safeguard
+    description: Exact credential-echo rejection before chat completion persistence
+    safeguard_type: privacy
+    guarantee: A custom model provider cannot reflect its decrypted Key into assistant text durable chat history or the browser response
+    protects: [D9, T2]
+    failure_behavior: Treat the response as a known provider_response_rejected failure, mark the pending turn FAILED, and never return the upstream body
+    code:
+      - path: backend/src/main/java/com/visualizedexp/backend/chat/OpenAiCompatibleChatClient.java
+        symbol: sendModelRequest
+      - path: backend/src/main/java/com/visualizedexp/backend/provider/ProviderVerifier.java
+        symbol: rejectCredentialEcho
+    tests:
+      - path: backend/src/test/java/com/visualizedexp/backend/chat/OpenAiCompatibleChatClientTest.java
+        symbol: rejectsProviderResponsesThatEchoTheActiveCredential
