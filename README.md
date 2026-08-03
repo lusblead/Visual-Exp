@@ -1,147 +1,250 @@
-# Visualized Exp
+<div align="center">
+  <p><strong>VISUALIZED EXP</strong></p>
+  <h1>把复杂问题，展开成可以继续走下去的知识空间</h1>
+  <p>
+    一款本地优先的 AI 可视化解释工具。<br />
+    看清概念关系，沿节点逐层探索，随时选中内容继续追问。
+  </p>
 
-把复杂问题展开成一个可以阅读、追问和继续深入的 AI 可视化解释空间。
+  <p>
+    <a href="https://github.com/lusblead/Visual-Exp/actions/workflows/ci.yml"><img src="https://github.com/lusblead/Visual-Exp/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI" /></a>
+    <img src="https://img.shields.io/badge/version-0.2.0-6C63FF" alt="Version 0.2.0" />
+    <img src="https://img.shields.io/badge/Node.js-%E2%89%A522.13.0-339933?logo=nodedotjs&amp;logoColor=white" alt="Node.js 22.13.0 or newer" />
+    <img src="https://img.shields.io/badge/platform-Windows-0078D4?logo=windows11&amp;logoColor=white" alt="Windows" />
+    <a href="LICENSE"><img src="https://img.shields.io/github/license/lusblead/Visual-Exp?color=6C63FF" alt="MIT License" /></a>
+  </p>
 
-Visualized Exp 不把回答一次性压成长文或固定模板。它先生成当前层的解释与概念关系，只预备下一层入口；用户可以沿节点递归探索，也可以选中一句话直接向 AI 提问或继续深入。
+  <p>
+    <a href="#quick-start"><strong>快速开始</strong></a>
+    ·
+    <a href="#first-use"><strong>首次配置</strong></a>
+    ·
+    <a href="#user-guide"><strong>使用指南</strong></a>
+    ·
+    <a href="https://github.com/lusblead/Visual-Exp/issues"><strong>反馈问题</strong></a>
+  </p>
+</div>
 
-![Visualized Exp 的离线演示：可缩放概念总览与递归阅读界面](docs/assets/product-overview.png)
+---
 
-```mermaid
-flowchart LR
-    Q["复杂问题"] --> O["当前层概念总览"]
-    O --> R["完整解释"]
-    R --> N["点击节点进入下一层"]
-    R --> S["选中句子"]
-    S --> A["向 AI 提问"]
-    S --> D["深入解释"]
-    A -. "按本轮设置" .-> W["受控联网搜索"]
-```
+## 不再被一篇长回答困住
 
-## 核心体验
+普通 AI 回答把所有信息一次性铺在你面前。Visualized Exp 先呈现当前层最重要的概念和关系，再由你决定下一步往哪里走。
 
-- 递归语义缩放：根场景只展示 3–6 个高层入口，点击节点进入下一层，并用 `‹ / ›` 沿探索历史移动。
-- 概念先行：开头用 Mermaid 绘制当前层概念关系；可打开大图并在 100%–300% 之间缩放。
-- 渐进生成：只预生成当前入口的直接子场景，避免提前铺开整张知识图谱。
-- 选区双入口：选中正文后可选择“向 AI 提问”或“深入”；左侧对话栏按需打开且可以关闭。
-- 语境化名词解释：仅 AI 标注的名词可点击，解释不会修改主语义文档。
-- 历史会话：Java 后端持久化知识会话和选区对话，支持刷新恢复、切换与删除。
-- 可选联网：主问题提供开/关；选区对话每轮可选关闭、自动或强制。搜索服务已配置不等于已经允许联网。
-- 离线演示：没有模型密钥时仍可使用确定性的演示生成器体验主要浏览流程。
+<table>
+  <tr>
+    <td align="center" width="33%">
+      <strong>01 · 提出问题</strong><br />
+      <sub>输入想真正弄懂的复杂主题</sub>
+    </td>
+    <td align="center" width="33%">
+      <strong>02 · 看清结构</strong><br />
+      <sub>先获得概念总览与当前层解释</sub>
+    </td>
+    <td align="center" width="33%">
+      <strong>03 · 自由深入</strong><br />
+      <sub>进入节点、解释术语或选区追问</sub>
+    </td>
+  </tr>
+</table>
 
-## 模型、协议与搜索服务
+## ✨ 你可以这样探索
 
-“供应商预设”只是可编辑的默认值，不是项目分别实现了每家厂商的私有协议。当前 Java 模型通道实现两种协议：
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <strong>🧭 递归语义缩放</strong><br /><br />
+      每次只聚焦当前层。点击感兴趣的节点进入下一层，不必在一张无限扩张的知识图里迷路。
+    </td>
+    <td width="50%" valign="top">
+      <strong>🕸️ 可缩放概念总览</strong><br /><br />
+      先看核心概念和它们的联系，再阅读正文；需要时可以打开大图查看关系。
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <strong>💬 选中内容继续追问</strong><br /><br />
+      选中一句话，直接“向 AI 提问”，或让系统围绕这段内容继续“深入”。
+    </td>
+    <td width="50%" valign="top">
+      <strong>🔎 语境化术语解释</strong><br /><br />
+      单击正文中标出的术语查看说明，双击则进入更完整的深入解释。
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <strong>🌐 按需联网</strong><br /><br />
+      主问题和每轮选区对话分别控制是否搜索；配置搜索服务不会自动把所有问题送去联网。
+    </td>
+    <td width="50%" valign="top">
+      <strong>💾 本地知识记录</strong><br /><br />
+      自动保存探索会话，随时恢复之前的内容，并可导出 Markdown 或 JSON。
+    </td>
+  </tr>
+</table>
 
-| 类型 | 当前实现 |
-| --- | --- |
-| 模型协议 | OpenAI Chat Completions、Anthropic Messages |
-| 模型预设 | OpenAI、Anthropic、DeepSeek、Kimi、GLM、Gemini、通义千问、OpenRouter |
-| 自定义模型 | 可配置 Base URL/完整请求 URL、模型 ID、协议和受限认证 Header |
-| 搜索适配器 | Tavily Search、Brave Search |
+<a id="quick-start"></a>
 
-Tavily 当前只用于搜索（Search），未接入 Extract、Crawl、Map 或 Research。搜索 API Key 属于搜索供应商鉴权，与模型 API Key 相互独立；`web_search` 工具本身并不天然要求某一家供应商或某一种 Key。
+## 🚀 快速开始
 
-语义图生成默认通过本机 DeepSeek companion 使用项目定义的 Pro/Flash 模型路由。选区对话在没有启用模型覆盖时复用该通道；只有用户明确保存并启用模型覆盖后，新对话才改用 Java 中的供应商配置，无需重复配置同一把 DeepSeek Key。
+> [!IMPORTANT]
+> 完整的一键本地体验目前面向 Windows，因为 API Key 会通过 Windows 凭据管理器保存在当前电脑上。
 
-## 系统结构
+### 环境要求
 
-```mermaid
-flowchart LR
-    B["浏览器"] -->|"同源请求"| V["Vinext / TypeScript BFF"]
-    V --> L["语义图生成与校验"]
-    V -->|"HttpOnly owner cookie"| J["Java 17 / Spring Boot"]
-    J --> H["H2 或 PostgreSQL"]
-    J --> M["模型供应商"]
-    J --> S["SearchProvider SPI"]
-    S --> T["Tavily Search"]
-    S --> R["Brave Search"]
-    V -->|"仅回环地址"| C["Windows .NET companion"]
-    C --> D["Windows Credential Manager"]
-```
+| Node.js | Java | Maven | .NET SDK |
+| :---: | :---: | :---: | :---: |
+| 22.13.0+ | 17+ | 3.6.3+ | 10.0+ |
 
-关键边界：
-
-- 语义文档是知识结构的唯一事实来源；节点保存内容、层级、关系和展示建议，不保存像素坐标或 React 组件名。
-- 模型只提交受验证的语义操作或受限的 `web_search(query, freshness?)` 调用，不能指定搜索请求 URL。
-- 供应商 Key 只写不回显。Windows companion 将默认 DeepSeek Key 保存在系统凭据管理器；Java 使用 AES-256-GCM 加密模型覆盖和搜索供应商 Key。
-- Java 对话提交使用稳定的 `clientTurnId`，持久化 `PENDING / COMPLETED / FAILED / UNKNOWN` 状态，无法确认结果时不会盲目重放付费请求。
-
-更多设计细节见 [最小视觉对话规范](specs/minimal-visual-conversation.md)、[会话与凭据边界](specs/conversation-source-and-credentials.md)和 [Java 后端说明](backend/README.md)。
-
-## 环境要求
-
-完整的 `dev:local` 本地体验目前面向 Windows，因为它依赖 Windows Credential Manager。
-
-| 依赖 | 最低版本 |
-| --- | --- |
-| Node.js | 22.13.0 |
-| Java | 17 |
-| Maven | 3.6.3 |
-| .NET SDK | 10.0 |
-
-## 快速开始
-
-安装依赖并启动 companion、Java 后端和网站：
+### 安装并启动
 
 ```powershell
+git clone https://github.com/lusblead/Visual-Exp.git
+cd Visual-Exp
 npm install
 npm run dev:local
 ```
 
-默认访问 `http://localhost:3000`。首次使用时打开右侧设置：
+启动完成后，打开 [http://localhost:3000](http://localhost:3000)。按 `Ctrl+C` 可以停止本次启动的所有本地服务。
 
-1. 在上方保存 DeepSeek Key，用于语义图和默认选区对话。
-2. 如有需要，在“模型覆盖”中配置其他模型供应商。
-3. 如需联网，配置并启用搜索供应商，再在搜索服务区域允许下一次主问题联网；选区对话仍按每轮单独选择。
-
-保存模型或搜索配置会发起一次最小验证请求，可能计入供应商用量。
-
-只体验不调用真实模型的前端演示：
+<details>
+<summary><strong>没有 API Key？先打开演示模式</strong></summary>
 
 ```powershell
+npm install
 $env:EXPLANATION_MODEL_PROVIDER = "demo"
 npm run dev
 ```
 
-该模式不会自动启动 Java 后端，因此不包含持久化历史和选区对话。手动拆分进程、PostgreSQL 配置及服务端环境变量见 [backend/README.md](backend/README.md) 和 [.env.example](.env.example)。任何密钥都不得使用 `NEXT_PUBLIC_` 前缀。
+演示模式不会调用真实模型，也不会启动完整本地后端，因此不包含持久化知识记录和选区 AI 对话。
 
-## 验证
+</details>
 
-完整的本地发布门禁：
+<a id="first-use"></a>
+
+## ⚙️ 首次配置
+
+打开页面后，点击问题输入框右侧的设置按钮。
+
+### 1. 连接默认 AI 服务
+
+在“AI 服务”中填写 DeepSeek API Key，然后点击“保存到本机”。这个服务负责生成可视化解释和深入说明，也会作为选区 AI 对话的默认模型。
+
+> [!NOTE]
+> 保存模型或搜索配置时会执行一次最小验证请求，可能产生少量供应商用量。
+
+### 2. 可选：更换选区对话模型
+
+如果希望“向 AI 提问”使用其他模型，可在“模型覆盖（可选）”中添加并启用配置。模型覆盖只影响之后新建的选区 AI 对话，不会替换默认的可视化解释服务。
+
+| 模型预设 | 支持方式 |
+| --- | --- |
+| OpenAI、DeepSeek、Kimi、GLM、Gemini、通义千问、OpenRouter | OpenAI Chat Completions 兼容接口 |
+| Anthropic | Anthropic Messages 接口 |
+| 自主设置 | 自定义地址、模型 ID 与认证方式 |
+
+### 3. 可选：连接联网搜索
+
+在“搜索服务”中配置 **Tavily** 或 **Brave Search**，并将它设为当前搜索服务。
+
+- 主问题：开启“允许下一次主问题联网”。
+- 选区对话：发送前为本轮选择“关闭”“自动”或“强制”。
+
+仅保存搜索服务不会自动联网；是否联网仍由对应入口的开关决定。
+
+<a id="user-guide"></a>
+
+## 🧩 30 秒使用指南
+
+| 目标 | 操作 |
+| --- | --- |
+| 创建解释 | 在顶部输入问题，按回车或点击 `↑` |
+| 进入下一层 | 点击正文区块或区块右侧的 `→` |
+| 前进或返回 | 使用页面左上角的 `‹` 和 `›` |
+| 查看术语说明 | 单击正文中带标记的术语 |
+| 深入理解术语 | 双击带标记的术语 |
+| 追问一句话 | 选中正文，点击“向 AI 提问” |
+| 深入选中内容 | 选中正文，点击“深入” |
+| 恢复知识记录 | 打开右上角的知识记录面板并选择会话 |
+| 导出当前内容 | 在知识记录面板选择 Markdown 或 JSON |
+
+### 选择适合你的预生成方式
+
+| 模式 | 适合场景 | 模型用量 |
+| --- | --- | :---: |
+| **省流** | 只在点击后生成下一层 | 较少 |
+| **平衡** | 提前准备少量可能访问的内容 | 适中 |
+| **深入** | 准备更多下一层内容，减少后续等待 | 较多 |
+
+## 🔐 数据与 API Key
+
+- 完整本地模式会把知识记录保存在当前电脑上。
+- 默认 DeepSeek Key 保存在 Windows 凭据管理器中，不需要写入项目文件。
+- 模型和搜索服务的 Key 保存后不会在页面中回显。
+- 不要把 API Key 写入代码、提交到 Git，或添加到任何以 `NEXT_PUBLIC_` 开头的变量中。
+
+<details>
+<summary><strong>端口被占用</strong></summary>
+
+可以为网页和后端指定其他端口：
 
 ```powershell
-npm run harness:minimal
+$env:PORT = "3001"
+$env:BACKEND_PORT = "18080"
+npm run dev:local
 ```
 
-该命令会依次运行 companion 构建、Java 测试、前端构建、Node 测试、TypeScript 类型检查和 ESLint。也可以单独运行：
+然后访问 [http://localhost:3001](http://localhost:3001)。
+
+</details>
+
+<details>
+<summary><strong><code>npm run dev:local</code> 启动失败</strong></summary>
+
+先确认依赖都可以从终端执行：
 
 ```powershell
-npm test
-npm run typecheck
-npm run lint
+node --version
+java -version
+mvn -version
+dotnet --version
 ```
 
-自动化测试不需要真实 API Key，也不应发起真实模型或搜索请求。
+如果某条命令不存在，请安装对应依赖并重新打开终端。首次启动还需要能够访问 npm、Maven 和 NuGet 的依赖下载服务。
 
-## 安全与部署边界
+</details>
 
-本项目当前是本地优先、单用户应用。HttpOnly owner cookie 只用于同一设备上的数据隔离，不是账号登录、强身份认证或多设备同步方案。
+<details>
+<summary><strong>页面可以打开，但无法生成真实解释</strong></summary>
 
-不要把当前本地配置直接当作公开多用户生产服务。公开部署前至少需要补齐：
+- 确认不是以 `demo` 模式启动。
+- 打开设置，确认 DeepSeek Key 已验证并保存。
+- 如果刚替换 Key，请重新提交问题。
 
-- 真实的身份认证、授权与租户隔离；
-- 请求速率限制、并发上限、配额和费用预算；
-- HTTPS、服务端 Secret Manager 和密钥轮换；
-- 数据库备份、迁移与恢复演练；
-- 出站网络防火墙或代理、审计日志和运行监控。
+</details>
 
-请勿提交 `.env`、API Key、Token、数据库文件、日志、个人会话或包含这些内容的截图。安全问题请按 [SECURITY.md](SECURITY.md) 私下报告。
+<details>
+<summary><strong>已经配置搜索服务，但回答没有联网</strong></summary>
 
-## 参与贡献
+请同时确认：
 
-提交代码前请阅读 [CONTRIBUTING.md](CONTRIBUTING.md)，并运行完整门禁。行为变更还应同步更新 `docs/feature-flows/` 中对应的流程与可追溯信息。
+- Tavily 或 Brave Search 已验证并设为当前服务；
+- 主问题的“允许下一次主问题联网”已开启，或选区对话本轮选择了“自动”或“强制”。
 
-## 版本与许可证
+</details>
 
-- 版本记录：[CHANGELOG.md](CHANGELOG.md)
-- 许可证：[MIT](LICENSE)
+## 🤝 参与项目
+
+| | |
+| --- | --- |
+| 🧾 [查看版本记录](CHANGELOG.md) | 🛠️ [阅读贡献指南](CONTRIBUTING.md) |
+| 🐞 [提交问题](https://github.com/lusblead/Visual-Exp/issues) | 🔒 [私下报告安全问题](SECURITY.md) |
+
+Visualized Exp 当前定位为本地优先、单用户应用，暂不提供可直接公开运营的多用户 SaaS 部署方案。
+
+---
+
+<div align="center">
+  <p>如果 Visualized Exp 对你有帮助，欢迎点一个 Star 或分享你的使用反馈。</p>
+  <p><sub>Local-first · Single-user · MIT License</sub></p>
+</div>
